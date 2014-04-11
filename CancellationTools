@@ -1,0 +1,52 @@
+# -*- coding: utf-8 -*-
+#
+# This file is part of CancellationTools
+#
+# CancellationTools is open-source software for running cancellation tasks,
+# and directly analysing the data they produce.
+#
+# Copyright (C) 2014, Edwin S. Dalmaijer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>
+
+__author__ = u"Edwin Dalmaijer"
+__version__ = u"1.2.0"
+
+# import stuff we need to run the app
+import imp
+import sys
+import os
+
+# DIRECTORY
+# get the current directory (how depends on if this is the executable or
+# the Python script)
+if hasattr(sys, u"frozen") or hasattr(sys, u"importers") or imp.is_frozen(u"__main__"):
+	directory = os.path.dirname(sys.executable)
+else:
+	directory = unicode(os.path.dirname(os.path.abspath(__file__)))
+# change the current directory
+os.chdir(directory)
+# add directory to path
+if directory not in sys.path:
+	sys.path.append(directory)
+
+# RUN
+# import everything we will need from the copied packages (see setup.py)
+from libcancellation import app
+import libcancellation
+import matplotlib
+import numpy
+import pygame
+# run the application
+app.run(directory, version=__version__)
