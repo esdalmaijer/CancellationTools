@@ -144,7 +144,7 @@ for pkg in sys.builtin_module_names:
 # SETUP
 setup(
     name="CancellationTools",
-    version="1.0.0",
+    version="1.2.1",
     description="run and analyse cancellation tasks",
     author="Edwin Dalmaijer",
     author_email="e.s.dalmaijer@pygaze.org",
@@ -186,4 +186,4 @@ print("copying resources...")
 newresdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'resources')
 shutil.copytree(resdir, newresdir)
 
-print('Traceback (most recent call last):\n  File "setup.py", line 185, in (module)\n    error = LOL!\nFakeError: You actually made it to the end!')
+print('Traceback (most recent call last):\n  File "setup.py", line 189, in (module)\n    error = LOL!\nFakeError: You actually made it to the end!')
