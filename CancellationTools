@@ -21,7 +21,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>
 
 __author__ = u"Edwin Dalmaijer"
-__version__ = u"1.2.0"
+__version__ = u"1.2.1"
 
 # import stuff we need to run the app
 import imp

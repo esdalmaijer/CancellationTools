@@ -81,7 +81,7 @@ def back_to_start(settings):
 	disp = pygame.display.get_surface()
 	disp.blit(settings[u'guiscreens'][settings[u'currentscreen']], (0,0))
 	pygame.display.flip()
-		
+
 	return settings
 
 
@@ -609,7 +609,7 @@ def select_this_dataset(settings):
 		text = u"you chose all datasets (click to continue)"
 	else:
 		text = u"you chose dataset '%s' (click to continue)" % dataname
-	textsurf = settings[u'font'][u'large'][u'regular'].render(text, False, settings[u'fgc'])
+	textsurf = settings[u'font'][u'medium'][u'regular'].render(text, False, settings[u'fgc'])
 	textpos = (int(settings[u'dispcentre'][0]-textsurf.get_width()/2), int(settings[u'dispcentre'][1]-textsurf.get_height()/2))
 	# display message
 	disp.fill(settings[u'bgc'])

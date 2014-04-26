@@ -76,10 +76,26 @@ def run(directory, version=u"unknown"):
 	
 	# browser
 	settings[u'dir'][u'browsing'] = os.path.join(settings[u'dir'][u'res'], u'tasks')
-	
-	
+
+
 	# # # # #
-	# LAY-OUT
+	# DISPLAY
+	
+	# initialize pygame.display (should have been done alread, but just for safety)
+	pygame.display.init()
+	
+	# get the current display info
+	dispinfo = pygame.display.Info()
+	w, h = dispinfo.current_w, dispinfo.current_h
+	
+	# correct the display size if it is insanely large (likely a two-screen setup)
+	if w > 1920 or h > 1200:
+		# get the second largets display mode
+		w, h = pygame.display.list_modes()[1]
+	
+	# save the display size in the settings
+	settings[u'dispsize'] = [w,h]
+	settings[u'dispcentre'] = [w/2,h/2]
 	
 	# COLOURS
 	# these colours are all from the Tango theme, see:
@@ -128,11 +144,12 @@ def run(directory, version=u"unknown"):
 	
 	# FONTS
 	# all fonts are from the Ubuntu font family, see: http://font.ubuntu.com/
-	
+	# rescale medium font size to display width
+	mediumfontsize = int(settings[u'dispsize'][0] * (12.0 / (1920-1024)))
 	# initialize pygame.font (should have been done alread, but just for safety)
 	pygame.font.init()
 	# create new Font instances
-	settings[u'fontsize'] = {u'large':48, u'medium':24, u'small':12}
+	settings[u'fontsize'] = {u'large':48, u'medium':mediumfontsize, u'small':12}
 	settings[u'font'] = {}
 	for s in settings[u'fontsize'].keys():
 		settings[u'font'][s] = {	u'regular':pygame.font.Font(os.path.join(settings[u'dir'][u'fonts'],u'Ubuntu-R.ttf'), settings[u'fontsize'][s]),
@@ -140,29 +157,9 @@ def run(directory, version=u"unknown"):
 							u'italic':pygame.font.Font(os.path.join(settings[u'dir'][u'fonts'],u'Ubuntu-RI.ttf'), settings[u'fontsize'][s])
 							}
 	
-	
-	# # # # #
-	# DISPLAY
-	
-	# initialize pygame.display (should have been done alread, but just for safety)
-	pygame.display.init()
-	
-	# get the current display info
-	dispinfo = pygame.display.Info()
-	w, h = dispinfo.current_w, dispinfo.current_h
-	
-	# correct the display size if it is insanely large (likely a two-screen setup)
-	if w > 1920 or h > 1200:
-		# get the second largets display mode
-		w, h = pygame.display.list_modes()[1]
-	
-	# save the display size in the settings
-	settings[u'dispsize'] = [w,h]
-	settings[u'dispcentre'] = [w/2,h/2]
-	
+	# DISPLAY	
 	# create the display
 	disp = pygame.display.set_mode(settings[u'dispsize'], pygame.FULLSCREEN)
-	
 	# show a loading message
 	textsurf = settings[u'font'][u'large'][u'regular'].render(u"loading, please wait...", False, settings[u'fgc'])
 	disp.blit(textsurf, (settings[u'dispcentre'][0]-textsurf.get_width()/2, settings[u'dispcentre'][1]-textsurf.get_height()/2))
@@ -196,33 +193,33 @@ def run(directory, version=u"unknown"):
 	# GUI SCREENS
 	
 	# top buttons
-	settings[u'topbuttsize'] = (50,50)
-	settings[u'topbuttons'] =  {	'quit': {	u'rect':[	settings[u'dispsize'][0]-2*settings[u'topbuttsize'][0],
-											settings[u'topbuttsize'][1],
+	settings[u'topbuttsize'] = (30,30)
+	settings[u'topbuttons'] =  {	'quit': {	u'rect':[	settings[u'dispsize'][0]-int(0.5*settings[u'topbuttsize'][0]),
+											settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
 											settings[u'topbuttsize'][0],
 											settings[u'topbuttsize'][0]],
 									u'text':u"x",
 									u'font':u'bold',
 									u'colour':settings[u'colours'][u'scarletred'][2],
 									u'onclick':libgui.quit_application},
-							'mini': {	u'rect':[	settings[u'dispsize'][0]-6*settings[u'topbuttsize'][0],
-											settings[u'topbuttsize'][1],
+							'mini': {	u'rect':[	settings[u'dispsize'][0]-int(3.5*settings[u'topbuttsize'][0]),
+											settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
 											settings[u'topbuttsize'][0],
 											settings[u'topbuttsize'][1]],
 									u'text':u"-",
 									u'font':u'bold',
 									u'colour':settings[u'colours'][u'skyblue'][0],
 									u'onclick':libgui.minimize_application},
-							'full': {	u'rect':[	settings[u'dispsize'][0]-4*settings[u'topbuttsize'][0],
-											settings[u'topbuttsize'][1],
+							'full': {	u'rect':[	settings[u'dispsize'][0]-int(2*settings[u'topbuttsize'][0]),
+											settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
 											settings[u'topbuttsize'][0],
 											settings[u'topbuttsize'][1]],
 									u'text':u"□",
 									u'font':u'bold',
 									u'colour':settings[u'colours'][u'skyblue'][0],
 									u'onclick':libgui.toggle_fullscreen},
-							'prev': {	u'rect':[	settings[u'topbuttsize'][0],
-											settings[u'topbuttsize'][1],
+							'prev': {	u'rect':[	settings[u'topbuttsize'][0]-int(0.5*settings[u'topbuttsize'][0]),
+											settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
 											settings[u'topbuttsize'][0],
 											settings[u'topbuttsize'][1]],
 									u'text':u"<",

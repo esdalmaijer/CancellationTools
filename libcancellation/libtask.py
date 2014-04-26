@@ -423,7 +423,7 @@ class Task():
 		os.mkdir(self.outdir)
 		
 		# open a new output file
-		outfile = open(os.path.join(self.outdir, u'raw.txt'), 'w')
+		outfile = open(os.path.join(self.outdir, u'raw.txt'), u'w')
 		header = [u'ppname', u'taskname', u'testdate', u'testtime', u'input', u'cancellations', u'time', u'x', u'y']
 		outfile.write(u'\t'.join(header) + u'\n')
 		
@@ -465,13 +465,13 @@ class Task():
 		while running:
 			# check if there is a mouse click or a keypress
 			for event in pygame.event.get():
-				# check if there was a keypress
-				if event.type == pygame.KEYDOWN:
-					# check if the Escape key is pressed
-					if event.key == pygame.K_ESCAPE:
-						running = False
+#				# check if there was a keypress
+#				if event.type == pygame.KEYDOWN:
+#					# check if the Escape key is pressed
+#					if event.key == pygame.K_ESCAPE:
+#						running = False
 				# check if there was a mouseclick
-				elif event.type == pygame.MOUSEBUTTONDOWN:
+				if event.type == pygame.MOUSEBUTTONDOWN:
 					# if the click was on the save button, stop the task
 					if check_click(event.pos, saverect):
 						running = False

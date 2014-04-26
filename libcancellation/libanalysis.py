@@ -271,6 +271,13 @@ class Analysis():
 		# extract the header
 		header = raw.pop(0)
 		
+		# STOP FURTHER PROCESSING IF THE FILE IS EMPTY
+		if len(raw) < 1:
+			self.fileisempty = True
+			return
+		else:
+			self.fileisempty = False
+		
 		# SETTINGS
 		# set some variables
 		self.ppname = raw[0][header.index(u'ppname')]
@@ -315,72 +322,88 @@ class Analysis():
 		self.duration[u'string'] = u"%2.f:%2.f:%2.f" % (h,m,s)
 		self.duration[u'string'] = self.duration[u'string'].replace(u' ',u'0')
 		
+		return True
+		
 	
 	def run(self):
 		
-		"""Runs through all analysis, and creates an output file (PDF) in the
-		output directory
+		"""Runs through all analysis, and creates output files in the output
+		directory
 		"""
+
+		# # # # #
+		# NO DATA
+		if self.fileisempty:
+			# get the data file name
+			dataname = os.path.basename(self.datadir)
+			# create a new text file in the output
+			outfile = open(os.path.join(self.outdir, u"empty.txt"), u"w")
+			# write a message to this file
+			outfile.write(u"File '%s' contains no data." % dataname)
+			# close the text file
+			outfile.close()
+		
 		
 		# # # # #
 		# DATA ANALYSIS
-		
-		# TARGETS
-		# read the target coordinates for this task
-		self.read_target_cors()
-		# transform clicks to targets
-		self.clicks_to_targets()
-		
-		# NEGLECT MEASURES
-		# calculate the amount of omissions
-		self.calc_omissions()
-		# calculate centre of cancellation (x and y)
-		self.calc_centre_of_cancellation()
-		
-		# DISORGANIZED SEARCH MEASURES
-		# calculate the amount of perseverations
-		self.calc_total_perseverations()
-		self.calc_immediate_perseverations()
-		self.calc_delayed_perseverations()
-		# calculate the mean inter-cancellation (standardized) distance
-		self.calc_mean_interdist()
-		self.calc_stand_interdist()
-		# calculate the mean inter-cancellation time and the search speed
-		self.calc_mean_intertime()
-		self.calc_search_speed()
-		# calculate the Q score
-		self.calc_qscore()
-		# calculate the mean angle between cancellations
-		self.calc_mean_angle()
-		# calculate the standardized angle between cancellations
-		self.calc_stand_angle()
-		# calculate the best R
-		self.calc_best_r()
-		# calculate intersection rate
-		self.calc_intersect_rate()
-		
-		
-		# # # # #
-		# OUTPUT DOCUMENTS
-		
-		# text document with all values
-		self.summary_txt()
-		# cancellation path
-		self.plot_cancellation_path()
-		# heatmaps
-		self.plot_heatmap(maptype=u'cancellation')
-		self.plot_heatmap(maptype=u'omission')
-		self.plot_heatmap(maptype=u'intersection')
-		# cancellation heatmap superimposed over the task
-		self.plot_superimposed_heatmap(maptype=u'cancellation')
-		self.plot_superimposed_heatmap(maptype=u'omission')
-		self.plot_superimposed_heatmap(maptype=u'intersection')
-		# best R plots
-		self.plot_best_r()
-		# summary of everything in a PDF
-		self.summary_pdf()
-		# close all figures (in case Matplotlib was in interactive mode)
-		pyplot.close(u'all')
+		else:
+
+			# TARGETS
+			# read the target coordinates for this task
+			self.read_target_cors()
+			# transform clicks to targets
+			self.clicks_to_targets()
+			
+			# NEGLECT MEASURES
+			# calculate the amount of omissions
+			self.calc_omissions()
+			# calculate centre of cancellation (x and y)
+			self.calc_centre_of_cancellation()
+			
+			# DISORGANIZED SEARCH MEASURES
+			# calculate the amount of perseverations
+			self.calc_total_perseverations()
+			self.calc_immediate_perseverations()
+			self.calc_delayed_perseverations()
+			# calculate the mean inter-cancellation (standardized) distance
+			self.calc_mean_interdist()
+			self.calc_stand_interdist()
+			# calculate the mean inter-cancellation time and the search speed
+			self.calc_mean_intertime()
+			self.calc_search_speed()
+			# calculate the Q score
+			self.calc_qscore()
+			# calculate the mean angle between cancellations
+			self.calc_mean_angle()
+			# calculate the standardized angle between cancellations
+			self.calc_stand_angle()
+			# calculate the best R
+			self.calc_best_r()
+			# calculate intersection rate
+			self.calc_intersect_rate()
+			
+			
+			# # # # #
+			# OUTPUT FILES
+			
+			# text document with all values
+			self.summary_txt()
+			# cancellation path
+			self.plot_cancellation_path()
+			# heatmaps
+			self.plot_heatmap(maptype=u'cancellation')
+			self.plot_heatmap(maptype=u'omission')
+			self.plot_heatmap(maptype=u'intersection')
+			# cancellation heatmap superimposed over the task
+			self.plot_superimposed_heatmap(maptype=u'cancellation')
+			self.plot_superimposed_heatmap(maptype=u'omission')
+			self.plot_superimposed_heatmap(maptype=u'intersection')
+			# best R plots
+			self.plot_best_r()
+			# summary of everything in a PDF
+			self.summary_pdf()
+			# close all figures (in case Matplotlib was in interactive mode)
+			pyplot.close(u'all')
 	
 	
 	# # # # #
