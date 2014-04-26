@@ -1,12 +1,12 @@
 [CancellationTools: all-in-one software for cancellation tasks](http://www.cancellationtools.org/)
 ===========================================================================
 
-version 1.2.1 (25-04-2013)
+version 1.2.2 (25-04-2013)
 
 
 IF YOU DECIDE TO PUBLISH RESULTS OBTAINED WITH THIS SOFTWARE, PLEASE INCLUDE IN YOUR REFERENCES:
 
-* Dalmaijer, E.S., Van der Stigchel, S., Nijboer, T.C.W., Cornelissen, T.H.W. (submitted). CancellationTools: all-in-one software for the administration and analysis of cancellation tasks
+* Dalmaijer, E.S., Van der Stigchel, S., Nijboer, T.C.W., Cornelissen, T.H.W., & Husain, M. (submitted). CancellationTools: all-in-one software for the administration and analysis of cancellation tasks
 
 
 This software is developed by Edwin Dalmaijer and collaborators. For more
