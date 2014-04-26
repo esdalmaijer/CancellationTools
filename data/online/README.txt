@@ -1,0 +1,1 @@
+Copy the text files produced by the online cancellation task to this directory.

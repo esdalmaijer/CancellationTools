@@ -60,11 +60,16 @@ def batch_analysis(settings):
 	disp = pygame.display.get_surface()
 	disp.fill(settings[u'bgc'])
 	
+	# check if the current analysis is for an online task
+	if os.path.dirname(settings[u'analysisproperties'][u'datapath']) == settings[u'dir'][u'onlinedata']:
+		datadir = settings[u'dir'][u'onlinedata']
+	else:
+		datadir = settings[u'dir'][u'rawout']
 	# loop through all data folders
-	alldata = os.listdir(settings[u'dir'][u'rawout'])
+	alldata = os.listdir(datadir)
 	for i in range(len(alldata)):
 		# set the new datafile
-		settings[u'analysisproperties'][u'datapath'] = os.path.join(settings[u'dir'][u'rawout'], alldata[i])
+		settings[u'analysisproperties'][u'datapath'] = os.path.join(datadir, alldata[i])
 		# show waiting message
 		disp.fill(settings[u'bgc'])
 		textsurf = settings[u'font'][u'large'][u'regular'].render(u"running analysis %d/%d, please wait..." % (i+1, len(alldata)), False, settings[u'fgc'])
@@ -211,11 +216,23 @@ class Analysis():
 		# read analysis properties
 		self.properties = settings[u'analysisproperties']
 		
+		# check if the dataset if from an onlinetask
+		if os.path.dirname(settings[u'analysisproperties'][u'datapath']) == settings[u'dir'][u'onlinedata']:
+			self.onlineset = True
+		else:
+			self.onlineset = False
+		
 		# check if the datapath exists
-		if os.path.isdir(self.properties[u'datapath']):
+		# (directory for data from local tasks, textfile for online tasks)
+		if os.path.isdir(self.properties[u'datapath']) or os.path.isfile(self.properties[u'datapath']):
 			# store the data directory
 			self.datadir = self.properties[u'datapath']
+			# get the output file name (stored under the name 'ppname',
+			# which will later be updated to the name without a timestamp)
 			self.ppname = os.path.basename(self.datadir)
+			# get rid of the .txt extension for online datasets
+			if self.onlineset:
+				self.ppname = os.path.splitext(self.ppname)[0]
 			# create a new output directory
 			self.outdir = os.path.join(settings[u'dir'][u'out'],self.ppname)
 			if not os.path.isdir(self.outdir):
@@ -257,8 +274,10 @@ class Analysis():
 		# create a files dict, to contain paths to all relevant files
 		self.files = {}
 		# add the raw data file and the marked task image to the files dict
-		self.files[u'raw'] = os.path.join(self.datadir, u'raw.txt')
-		self.files[u'marked'] = os.path.join(self.datadir, u'task.png')
+		if self.onlineset:
+			self.files[u'raw'] = copy.copy(self.datadir)
+		else:
+			self.files[u'raw'] = os.path.join(self.datadir, u'raw.txt')
 		
 		# READ DATAFILE
 		# open the data file
@@ -361,10 +380,10 @@ class Analysis():
 			self.calc_centre_of_cancellation()
 			
 			# DISORGANIZED SEARCH MEASURES
-			# calculate the amount of perseverations
-			self.calc_total_perseverations()
-			self.calc_immediate_perseverations()
-			self.calc_delayed_perseverations()
+			# calculate the amount of revisits
+			self.calc_total_revisits()
+			self.calc_immediate_revisits()
+			self.calc_delayed_revisits()
 			# calculate the mean inter-cancellation (standardized) distance
 			self.calc_mean_interdist()
 			self.calc_stand_interdist()
@@ -523,9 +542,9 @@ class Analysis():
 	
 	# DISORGANIZED SEARCH MEASURES
 	
-	def calc_total_perseverations(self):
+	def calc_total_revisits(self):
 		
-		"""Calculates the total amount of perseverations"""
+		"""Calculates the total amount of revisits"""
 		
 		# read target coordinates if this has not been done yet
 		if not hasattr(self, u'tarcors'):
@@ -538,15 +557,15 @@ class Analysis():
 		self.pers = {}
 		self.pers[u'tot'] = 0
 		for c in self.tarcors[u'cors']:
-			# the total number of perseverations is the number of times a
+			# the total number of revisits is the number of times a
 			# target was clicked, minus one (for the first time the targer
 			# was clicked)
 			if self.ctcors.count(c) > 1:
 				self.pers[u'tot'] += self.ctcors.count(c) - 1
 	
-	def calc_immediate_perseverations(self):
+	def calc_immediate_revisits(self):
 		
-		"""Calculates the amount of immediate perseverations"""
+		"""Calculates the amount of immediate revisits"""
 		
 		# calculate click transformed coordinates if this has not been done
 		if not hasattr(self, u'ctx'):
@@ -558,29 +577,29 @@ class Analysis():
 		px = numpy.where(numpy.diff(self.ctx)==0)[0]
 		py = numpy.where(numpy.diff(self.cty)==0)[0]
 		# numpy.intersect1d gives the sorted, unique values that are in both
-		# index number arrays: the immediate perseverations on both axis
+		# index number arrays: the immediate revisits on both axis
 		imp = numpy.intersect1d(px, py)
 		
 		# save value
 		self.pers[u'imm'] = len(imp)
 	
-	def calc_delayed_perseverations(self):
+	def calc_delayed_revisits(self):
 		
-		"""Calculates the amount of delayed perseverations"""
+		"""Calculates the amount of delayed revisits"""
 		
-		# calculate the total amount of perseverations and the amount of
-		# immediate perseverations, if this has not been done yet
+		# calculate the total amount of revisits and the amount of
+		# immediate revisits, if this has not been done yet
 		if hasattr(self, u'pers'):
 			if not u'tot' in self.pers.keys():
-				self.calc_total_perseverations()
+				self.calc_total_revisits()
 			if not u'imm' in self.pers.keys():
-				self.calc_immediate_perseverations()
+				self.calc_immediate_revisits()
 		else:
-			self.calc_total_perseverations()
-			self.calc_immediate_perseverations()
+			self.calc_total_revisits()
+			self.calc_immediate_revisits()
 
-		# the number of delayed perseverations, is the total number of
-		# perseverations minus the number of immediate perseverations
+		# the number of delayed revisits, is the total number of
+		# revisits minus the number of immediate revisits
 		self.pers[u'del'] = self.pers[u'tot'] - self.pers[u'imm']
 
 	def calc_mean_interdist(self):
@@ -597,7 +616,7 @@ class Analysis():
 		for i in range(len(self.intdist[u'all'])):
 			self.intdist[u'all'][i] = ((self.ctx[i]-self.ctx[i+1])**2 + (self.cty[i]-self.cty[i+1])**2)**0.5
 		# calculate mean interdistance (but only for distances greater than
-		# 0, as an intdist of 0 reflects a perseveration)
+		# 0, as an intdist of 0 reflects a revisit)
 		self.intdist[u'mean'] = numpy.mean(self.intdist[u'all'][self.intdist[u'all']>0])
 	
 	def calc_stand_interdist(self):
@@ -697,10 +716,10 @@ class Analysis():
 			# calculate the vertical distance
 			ydist = float(abs(self.cty[i]-self.cty[i+1]))
 			# check if there is an interdistance (otherwise it's a
-			# perseveration, and those do not have an interangle)
+			# revisit, and those do not have an interangle)
 			if self.intdist[u'all'][i] > 0:
 				self.angle['all'][i] = math.degrees(math.asin(ydist/self.intdist['all'][i]))
-			# invalid angles (perseverations) will be marked -1, and are
+			# invalid angles (revisits) will be marked -1, and are
 			# not used in further calculations
 			else:
 				self.angle['all'][i] = -1
@@ -1059,15 +1078,15 @@ class Analysis():
 		# check if the omissions have been calculated
 		if hasattr(self, u'pers'):
 			if u'tot' not in self.pers.keys():
-				self.calc_total_perseverations()
+				self.calc_total_revisits()
 			if u'imm' not in self.pers.keys():
-				self.calc_immediate_perseverations()
+				self.calc_immediate_revisits()
 			if u'del' not in self.pers.keys():
-				self.calc_delayed_perseverations()
+				self.calc_delayed_revisits()
 		else:
-			self.calc_total_perseverations()
-			self.calc_immediate_perseverations()
-			self.calc_delayed_perseverations()
+			self.calc_total_revisits()
+			self.calc_immediate_revisits()
+			self.calc_delayed_revisits()
 		# check if the standardized interdistance has been calculated
 		if hasattr(self, u'intdist'):
 			if not u'standardized' in self.intdist.keys():
@@ -1133,7 +1152,7 @@ class Analysis():
 				u"<b>neglect measures",
 				u"omissions: %d (left: %d, right: %d)" % (self.omissions[u'total'],self.omissions[u'left'],self.omissions[u'right']),
 				u"centre of cancellation: %1.2f (vertical: %1.2f)" % (self.coc[u'x'],self.coc[u'y']),
-				u"<b>perseverations",
+				u"<b>revisits",
 				u"immediate:	%d" % self.pers[u'imm'],
 				u"delayed:	%d" % self.pers[u'del']],
 

@@ -66,6 +66,7 @@ def run(directory, version=u"unknown"):
 	settings[u'dir'][u'data'] = os.path.join(settings[u'dir'][u'main'], u'data')
 	settings[u'dir'][u'out'] = os.path.join(settings[u'dir'][u'data'], u'output')
 	settings[u'dir'][u'rawout'] = os.path.join(settings[u'dir'][u'data'], u'raw')
+	settings[u'dir'][u'onlinedata'] = os.path.join(settings[u'dir'][u'data'], u'online')
 	
 	# resources
 	settings[u'dir'][u'res'] = os.path.join(settings[u'dir'][u'main'], u'resources')
@@ -232,18 +233,7 @@ def run(directory, version=u"unknown"):
 	# empty dicts to contain all screens and buttons
 	settings[u'guiscreens'] = {}
 	settings[u'guibuttons'] = {}
-	
-	# functions that draw screens
-#	settings[u'screendrawfunctions'] = {	u'start':libgui.startscreen,
-#									u'afterdataselection':libgui.afterdataselectionscreen,
-#									u'aftertaskselection':libgui.aftertaskselectionscreen,
-#									u'afterdataselection':libgui.afterdataselectionscreen,
-#									u'afterdataselection':libgui.afterdataselectionscreen,
-#									u'afterdataselection':libgui.afterdataselectionscreen,
-#									u'afterdataselection':libgui.afterdataselectionscreen,
-#									u'afterdataselection':libgui.afterdataselectionscreen,
-#									}
-	
+
 	# starting screen (and associated buttons)
 	settings[u'guiscreens'][u'start'], settings[u'guibuttons'][u'start'] = libgui.startscreen(settings)
 	
@@ -257,6 +247,7 @@ def run(directory, version=u"unknown"):
 	settings[u'currentbutton'] = None
 	settings[u'currenttaskpage'] = 0
 	settings[u'currentdatapage'] = 0
+	settings[u'currentonlinedatapage'] = 0
 	settings[u'currentbrowserpage'] = 0
 	settings[u'screenhistory'] = [u'start']
 	

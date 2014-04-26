@@ -1,0 +1,1 @@
+This directory will be used to store all of the analysis output files.

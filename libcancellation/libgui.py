@@ -71,6 +71,23 @@ def after_task_selection(settings):
 	return settings
 
 
+def analysis_options(settings):
+	
+	"""Changes the current screen to the analysis options screen"""
+	
+	# create a task selection screen if it doesn't exist yet
+	if not u'analysisoptions' in settings[u'guiscreens'].keys():
+		settings[u'guiscreens'][u'analysisoptions'], settings[u'guibuttons'][u'analysisoptions'] = analysisoptionsscreen(settings)
+	# change the current screen
+	settings[u'currentscreen'] = u'analysisoptions'
+	# draw current screen
+	disp = pygame.display.get_surface()
+	disp.blit(settings[u'guiscreens'][settings[u'currentscreen']], (0,0))
+	pygame.display.flip()
+	
+	return settings
+
+
 def back_to_start(settings):
 	
 	"""Changes the current screen back to the start screen"""
@@ -349,6 +366,18 @@ def next_data_page(settings):
 	return settings
 
 
+def next_online_data_page(settings):
+	
+	"""Advances to the next online data page"""
+	
+	# reduce the current data page	
+	settings[u'currentonlinedatapage'] += 1
+	# draw the data selection screen
+	settings = data_selection(settings)
+	
+	return settings
+
+
 def next_task_page(settings):
 	
 	"""Advances to the next task page"""
@@ -379,6 +408,22 @@ def one_dir_up(settings):
 	return settings
 
 
+def online_data_selection(settings):
+	
+	"""Changes the current screen to the online data selection screen"""
+	
+	# create a data selection screen if it doesn't exist yet
+	settings[u'guiscreens'][u'onlinedataselection'], settings[u'guibuttons'][u'onlinedataselection'] = onlinedataselectionscreen(settings)
+	# change the current screen
+	settings[u'currentscreen'] = u'onlinedataselection'
+	# draw current screen
+	disp = pygame.display.get_surface()
+	disp.blit(settings[u'guiscreens'][settings[u'currentscreen']], (0,0))
+	pygame.display.flip()
+	
+	return settings
+
+
 def prev_browser_page(settings):
 	
 	"""Returns to the previous task page"""
@@ -399,6 +444,19 @@ def prev_data_page(settings):
 	# reduce the current data page	
 	if settings[u'currentdatapage'] > 0:
 		settings[u'currentdatapage'] -= 1
+	# draw the data selection screen
+	settings = data_selection(settings)
+	
+	return settings
+
+
+def prev_online_data_page(settings):
+	
+	"""Returns to the previous online data page"""
+	
+	# reduce the current data page	
+	if settings[u'currentonlinedatapage'] > 0:
+		settings[u'currentonlinedatapage'] -= 1
 	# draw the data selection screen
 	settings = data_selection(settings)
 	
@@ -486,6 +544,13 @@ def same_browser_page(settings):
 def same_data_page(settings):
 	
 	"""Stays on the same data page (doesn't do anything)"""
+	
+	return settings
+
+
+def same_online_data_page(settings):
+	
+	"""Stays on the same online data page (doesn't do anything)"""
 	
 	return settings
 
@@ -601,7 +666,10 @@ def select_this_dataset(settings):
 	
 	# task path
 	dataname = settings[u'guibuttons'][settings[u'currentscreen']][settings[u'currentbutton']][u'text']
-	settings[u'analysisproperties'][u'datapath'] = os.path.join(settings[u'dir'][u'rawout'], dataname)
+	if settings[u'currentscreen'] == u'onlinedataselection':
+		settings[u'analysisproperties'][u'datapath'] = os.path.join(settings[u'dir'][u'onlinedata'], dataname)
+	else:
+		settings[u'analysisproperties'][u'datapath'] = os.path.join(settings[u'dir'][u'rawout'], dataname)
 	# get display handle
 	disp = pygame.display.get_surface()
 	# render text
@@ -956,6 +1024,80 @@ def afterdataselectionscreen(settings):
 	return screen, buttons
 
 
+def analysisoptionsscreen(settings):
+	
+	"""Draws the analysis options screen, showing two buttons: one to select
+	analysis of a local file, and one to select analysis of online data
+	
+	arguments
+	
+	settings		-	the app settings dict
+	
+	returns
+	
+	surface, dict	-	surface is a PyGame Surface instance, showing the
+					task settings screen screen
+					dict is a buttondict, containing the buttons above
+					(see numbers in the docstring), for each with keys:
+						rect		-	[x,y,w,h]
+						text		-	text on button
+						font		-	font style (e.g. u'bold')
+						colour	-	button colour (r,g,b)
+						onlcick	-	function to call when clicked
+									(settings need to be passed to
+									this function; function will
+									return updated settings and a
+									Boolean indicating the experiment
+									or analysis has started)
+
+			(1)   [local task]
+			(2)   [online task]
+	"""
+	
+	# convenience renaming
+	ds = settings[u'dispsize']
+	
+	# create a new Surface
+	screen = pygame.Surface(ds)
+	
+	# fill it with the background colour
+	screen.fill(settings[u'bgc'])
+	
+	# BUTTONS
+	# three buttons, each half of the screen size wide, and a quarter of the
+	# display size high; shown horizontally centered, at 1/4, 2/4 and 3/4 of
+	# the display height
+	margin = [int(ds[0]/4), int(ds[1]/4)]
+	buttsize = [int(ds[0]/2), int(ds[1]/6)]
+	top = int(ds[1]/3 - buttsize[1]/2)
+	buttons = {0:{	u'rect':[margin[0], top, buttsize[0], buttsize[1]],
+				u'text':u"local task data",
+				u'font':u'bold',
+				u'colour':settings[u'colours'][u'skyblue'][2],
+				u'onclick':data_selection},
+			1:{	u'rect':[margin[0], top+margin[1], buttsize[0], buttsize[1]],
+				u'text':u"online task data",
+				u'font':u'bold',
+				u'colour':settings[u'colours'][u'skyblue'][1],
+				u'onclick':online_data_selection}}
+
+	# draw the buttons
+	for i in buttons.keys():
+		# colour the button
+		bdict = buttons[i]
+		screen.fill(bdict[u'colour'], bdict[u'rect'])
+		# render and blit the text
+		txtsurf = settings[u'font'][u'medium'][bdict[u'font']].render(bdict[u'text'], False, settings[u'fgc'])
+		txtpos = [(bdict[u'rect'][0]+bdict[u'rect'][2]/2)-txtsurf.get_width()/2,
+				(bdict[u'rect'][1]+bdict[u'rect'][3]/2)-txtsurf.get_height()/2]
+		screen.blit(txtsurf, txtpos)
+	
+	# draw the top buttons
+	screen = draw_top_buttons(settings, screen)
+	
+	return screen, buttons
+
+
 def browserscreen(settings):
 	
 	"""Draws the browser screen, which shows eight items in the current
@@ -1198,7 +1340,7 @@ def dataselectionscreen(settings):
 	# the left arrow button should only be active when the current task page
 	# is higher than zero; the right arrow should only be active if the task
 	# list is longer than nine
-	if settings[u'currenttaskpage'] > 0:
+	if settings[u'currentdatapage'] > 0:
 		lcol = settings[u'colours'][u'skyblue'][2]
 	else:
 		lcol = settings[u'colours'][u'aluminium'][2]
@@ -1261,6 +1403,142 @@ def draw_top_buttons(settings, screen):
 		screen.blit(txtsurf, txtpos)
 	
 	return screen
+
+
+def onlinedataselectionscreen(settings):
+	
+	"""Draws the online data selection screen, which shows nine currently
+	available datasets (buttons 0-8) from online tasks, and two arrows to
+	scroll through the datasets (buttons 9 and 10)
+	
+				select a dataset
+				[0]	[1]	[2]
+		(9) [<]	[3]	[4]	[5]	(10) [>]
+				[6]	[7]	[8]
+
+	arguments
+	
+	settings		-	the app settings dict
+	
+	returns
+	
+	surface, dict	-	surface is a PyGame Surface instance, showing the
+					task settings screen screen
+					dict is a buttondict, containing the buttons above
+					(see numbers in the docstring), for each with keys:
+						rect		-	[x,y,w,h]
+						text		-	text on button
+						font		-	font style (e.g. u'bold')
+						colour	-	button colour (r,g,b)
+						onlcick	-	function to call when clicked
+									(settings need to be passed to
+									this function; function will
+									return updated settings and a
+									Boolean indicating the experiment
+									or analysis has started)
+	"""
+	
+	# DATA
+	# get all the data files
+	datanames = map(unicode, os.listdir(settings[u'dir'][u'onlinedata']))
+	# throw out anything that is not a folder
+	for name in datanames:
+		if not os.path.isfile(os.path.join(settings[u'dir'][u'onlinedata'], name)):
+			datanames.pop(datanames.index(name))
+	# only use eight
+	si = settings[u'currentonlinedatapage'] * 8
+	datanames = datanames[si:]
+	# insert the batch option as the first option
+	datanames.insert(0, u'batch')
+	
+	# DISPLAY
+	# convenience renaming
+	ds = settings[u'dispsize']
+	dc = settings[u'dispcentre']
+	# create a new Surface
+	screen = pygame.Surface(ds)
+	# fill it with the background colour
+	screen.fill(settings[u'bgc'])
+	
+	# TITLE
+	# title space: full width, 1/3 of the height
+	# render title surface
+	titsurf = settings[u'font'][u'large'][u'bold'].render(u"select a dataset", False, settings[u'fgc'])
+	# title position
+	titpos = [dc[0]-titsurf.get_width()/2, ds[1]/6-titsurf.get_height()/2]
+	# draw the title
+	screen.blit(titsurf,titpos)
+	
+	# DATA BUTTONS
+	# left margin: 2/15, interbutton margin: 1/15, right margin: 1/9
+	# title height: 1/3, button height (*3): 1/6, margin hight (*2): 1/18
+	# button specs
+	start = [int(2*ds[0]/15), int(ds[1]/3)]
+	margin = [int(ds[0]/15), int(ds[1]/18)]
+	buttsize = [int(ds[0]/5), int(ds[1]/6)]
+	# empty dict to contain the buttons
+	buttons = {}
+	# loop through buttons (left to right, top to bottom)
+	bis = [range(0,3), range(3,6), range(6,9)]
+	for r in range(3):
+		for c in range(3):
+			# get the button index
+			bi = bis[r][c]
+			# skip if the button index exceeds the amount of data files
+			if bi >= len(datanames):
+				continue
+			# button colour
+			if datanames[bi] == u'batch':
+				buttcol = settings[u'colours'][u'skyblue'][2]
+			else:
+				buttcol = settings[u'colours'][u'skyblue'][1]
+			# set the button dict
+			buttons[bi] = {u'rect':[start[0]+c*buttsize[0]+c*margin[0], start[1]+r*buttsize[1]+r*margin[1], buttsize[0], buttsize[1]],
+						u'text':datanames[bi],
+						u'font':u'bold',
+						u'colour':buttcol,
+						u'onclick':select_this_dataset}
+
+	# ARROW BUTTONS
+	# the left arrow button should only be active when the current task page
+	# is higher than zero; the right arrow should only be active if the task
+	# list is longer than nine
+	if settings[u'currentonlinedatapage'] > 0:
+		lcol = settings[u'colours'][u'skyblue'][2]
+	else:
+		lcol = settings[u'colours'][u'aluminium'][2]
+	if len(datanames) > 9:
+		rcol = settings[u'colours'][u'skyblue'][2]
+		ronc = next_online_data_page
+	else:
+		rcol = settings[u'colours'][u'aluminium'][2]
+		ronc = same_online_data_page
+	absize = int(ds[0]/15)
+	buttons[9] = {	u'rect':[int(ds[0]/15-absize/2), int(start[1]+buttsize[1]+margin[1]), absize, absize],
+				u'text':u"<",
+				u'font':u'bold',
+				u'colour':lcol,
+				u'onclick':prev_online_data_page}
+	buttons[10] = {u'rect':[int(14*ds[0]/15-absize/2), int(start[1]+buttsize[1]+margin[1]), absize, absize],
+				u'text':u">",
+				u'font':u'bold',
+				u'colour':rcol,
+				u'onclick':ronc}
+	# draw the buttons
+	for i in buttons.keys():
+		# colour the button
+		bdict = buttons[i]
+		screen.fill(bdict[u'colour'], bdict[u'rect'])
+		# render and blit the text
+		txtsurf = settings[u'font'][u'medium'][bdict[u'font']].render(bdict[u'text'], False, settings[u'fgc'])
+		txtpos = [(bdict[u'rect'][0]+bdict[u'rect'][2]/2)-txtsurf.get_width()/2,
+				(bdict[u'rect'][1]+bdict[u'rect'][3]/2)-txtsurf.get_height()/2]
+		screen.blit(txtsurf, txtpos)
+	
+	# draw the top buttons
+	screen = draw_top_buttons(settings, screen)
+	
+	return screen, buttons
 
 
 def startscreen(settings):
@@ -1333,7 +1611,7 @@ def startscreen(settings):
 				u'text':u"run analysis",
 				u'font':u'bold',
 				u'colour':settings[u'colours'][u'skyblue'][2],
-				u'onclick':data_selection}
+				u'onclick':analysis_options}
 #			3:{	u'rect':[2*margin[0]+buttsize[0], top+buttsize[1]+margin[1], buttsize[0], buttsize[1]],
 #				u'text':u"analysis settings",
 #				u'font':u'bold',
