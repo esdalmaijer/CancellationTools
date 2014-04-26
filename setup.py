@@ -144,7 +144,7 @@ for pkg in sys.builtin_module_names:
 # SETUP
 setup(
     name="CancellationTools",
-    version="1.2.1",
+    version="1.2.2",
     description="run and analyse cancellation tasks",
     author="Edwin Dalmaijer",
     author_email="e.s.dalmaijer@pygaze.org",
@@ -179,6 +179,7 @@ print("creating new (empty) data directory...")
 datadir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'data')
 os.mkdir(datadir)
 os.mkdir(os.path.join(datadir,'raw'))
+os.mkdir(os.path.join(datadir,'online'))
 os.mkdir(os.path.join(datadir,'output'))
 
 # COPY RESOURCES DIRECTORY
