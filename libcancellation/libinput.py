@@ -24,6 +24,12 @@ __author__ = u"Edwin Dalmaijer"
 
 # external
 import pygame
+# try importing Android, to support the Android app
+try:
+	import android
+# if the import fails, we're probably not running the Android app, so no panic
+except:
+	pass
 
 
 # # # # #
@@ -255,6 +261,10 @@ def colourpicker(settings):
 					disp.blit(rgbtext, (textpos[0]-rgbtext.get_width()/2, textpos[1]-rgbtext.get_height()/2))
 					# update display
 					pygame.display.flip()
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
 
 	# DISPLAY
 	# reset display
@@ -394,6 +404,10 @@ def textfield(rect, font, settings, onlynums=False, loadtext=True):
 		text = settings[u'guibuttons'][settings[u'currentscreen']][settings[u'currentbutton']][u'text']
 	else:
 		text = u""
+	
+	# if this is Android, show the keyboard
+	if settings[u'android']:
+		android.show_keyboard()
 
 	# run until Enter is pressed
 	enter = False
@@ -403,7 +417,7 @@ def textfield(rect, font, settings, onlynums=False, loadtext=True):
 			# check if the event is a keypress
 			if event.type == pygame.KEYDOWN:
 				# convert the keyname into something readable
-				key = pygame.key.name(event.key)#
+				key = pygame.key.name(event.key)
 				# check if the key is Enter
 				if key == u'return':
 					enter = True
@@ -431,6 +445,14 @@ def textfield(rect, font, settings, onlynums=False, loadtext=True):
 			# blit text to display
 			disp.blit(textsurf, textpos)
 			pygame.display.flip()
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
+
+	# hide keyboard on Android
+	if settings[u'android']:
+		android.hide_keyboard()
 	
 	# unclip display
 	disp.set_clip(None)

@@ -35,9 +35,21 @@ import sys
 import pygame
 
 
-def run(directory, version=u"unknown"):
+def run(directory, version=u"unknown", thisisandroid=False):
 	
-	"""Runs the application"""
+	"""Runs the application
+	
+	arguments
+	
+	directory		--	the directory of the application
+	
+	keyword arguments
+	
+	version		--	the version number as a string, e.g. '1.0.0'
+					(default = u'unknown')
+	thisisandroid	--	Boolean indicating if the app is running on Android
+					(default = False)
+	"""
 
 	# # # # #
 	# SETTINGS
@@ -45,14 +57,18 @@ def run(directory, version=u"unknown"):
 	# if this is Windows, change the video driver environment variable to handle
 	# input from touch screens better
 	if os.name == u'nt':
-	        os.environ['SDL_VIDEODRIVER'] = u'windib'
+		os.environ['SDL_VIDEODRIVER'] = u'windib'
+	
+	# if this is Android, import android
+	if thisisandroid:
+		import android
 	
 	# initialize pygame
 	pygame.init()
 	
 	# the settings dict will contain the important settings, e.g. the paths to all
 	# directories
-	settings = {u'version':version, u'ppname':None}
+	settings = {u'version':version, u'android':thisisandroid, u'ppname':None, u'newtaskname':None}
 	
 	
 	# # # # #
@@ -86,8 +102,11 @@ def run(directory, version=u"unknown"):
 	pygame.display.init()
 	
 	# get the current display info
-	dispinfo = pygame.display.Info()
-	w, h = dispinfo.current_w, dispinfo.current_h
+	if settings[u'android']:
+		w, h = 1200, 800
+	else:
+		dispinfo = pygame.display.Info()
+		w, h = dispinfo.current_w, dispinfo.current_h
 	
 	# correct the display size if it is insanely large (likely a two-screen setup)
 	if w > 1920 or h > 1200:
@@ -166,11 +185,34 @@ def run(directory, version=u"unknown"):
 	disp.blit(textsurf, (settings[u'dispcentre'][0]-textsurf.get_width()/2, settings[u'dispcentre'][1]-textsurf.get_height()/2))
 	pygame.display.flip()
 	
+	# SOUND
+	# initialize the mixer module
+	pygame.mixer.init()
+	# all sounds in a dict
+	settings[u'sounds'] = {u'cancellation':	os.path.join(settings[u'dir'][u'res'], u'oncancellation.ogg')}
+	# load all sounds
+	for s in settings[u'sounds'].keys():
+		settings[u'sounds'][s] = pygame.mixer.Sound(settings[u'sounds'][s])
+	
+	# ANDROID
+	# Android specific stuff, only do this if this is the Android app
+	if settings[u'android']:
+		# initialize Android
+		android.init()
+		# map Escape function to Back key
+		# TODO: is this necessary with Exit button at the ready in the
+		# top-right of the display of the app?
+		android.map_key(android.KEYCODE_BACK, pygame.K_ESCAPE)
+		# wait to resume (allows Android interrupt)
+		if android.check_pause():
+			android.wait_for_resume()
+
 	
 	# # # # #
 	# PROPERTIES
 	
 	# TASK
+	# these settings will be overridden later on
 	settings['taskproperties'] = {u'taskpath':None,
 							u'visible':u'visible',
 							u'ntargets':64,
@@ -182,7 +224,9 @@ def run(directory, version=u"unknown"):
 							u'fgc':(0,0,0),
 							u'pw':3,
 							u'ow':20,
-							u'input':u'mouse'}
+							u'input':u'mouse',
+							u'sound':u'x',
+							u'clickcorrect':u'x'}
 	
 	# ANALYSIS
 	settings[u'analysisproperties'] = {}
@@ -194,16 +238,16 @@ def run(directory, version=u"unknown"):
 	# GUI SCREENS
 	
 	# top buttons
-	settings[u'topbuttsize'] = (30,30)
-	settings[u'topbuttons'] =  {	'quit': {	u'rect':[	settings[u'dispsize'][0]-int(0.5*settings[u'topbuttsize'][0]),
-											settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
-											settings[u'topbuttsize'][0],
-											settings[u'topbuttsize'][0]],
+	settings[u'topbuttsize'] = (50,50)
+	settings[u'topbuttons'] =  {	'quit': {	u'rect':[	settings[u'dispsize'][0]-int(1.5*settings[u'topbuttsize'][0]),
+										settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
+										settings[u'topbuttsize'][0],
+										settings[u'topbuttsize'][0]],
 									u'text':u"x",
 									u'font':u'bold',
 									u'colour':settings[u'colours'][u'scarletred'][2],
 									u'onclick':libgui.quit_application},
-							'mini': {	u'rect':[	settings[u'dispsize'][0]-int(3.5*settings[u'topbuttsize'][0]),
+							'mini': {	u'rect':[	settings[u'dispsize'][0]-int(4.5*settings[u'topbuttsize'][0]),
 											settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
 											settings[u'topbuttsize'][0],
 											settings[u'topbuttsize'][1]],
@@ -211,7 +255,7 @@ def run(directory, version=u"unknown"):
 									u'font':u'bold',
 									u'colour':settings[u'colours'][u'skyblue'][0],
 									u'onclick':libgui.minimize_application},
-							'full': {	u'rect':[	settings[u'dispsize'][0]-int(2*settings[u'topbuttsize'][0]),
+							'full': {	u'rect':[	settings[u'dispsize'][0]-int(3*settings[u'topbuttsize'][0]),
 											settings[u'topbuttsize'][1]-int(0.5*settings[u'topbuttsize'][1]),
 											settings[u'topbuttsize'][0],
 											settings[u'topbuttsize'][1]],
@@ -257,9 +301,9 @@ def run(directory, version=u"unknown"):
 	
 	# loop until a task or an anlysis is started
 	while settings[u'running']:
-#		# check if the Escape key is pressed
-#		if libinput.check_escape():
-#			settings[u'running'] = False
+		# check if the Escape key is pressed
+		if libinput.check_escape():
+			settings[u'running'] = False
 		# wait for a (left) mouseclick
 		butt, pos = libinput.check_mouseclicks()
 		# check if the left button got pressed
@@ -292,6 +336,10 @@ def run(directory, version=u"unknown"):
 		# update the screen history
 		if settings[u'currentscreen'] != settings[u'screenhistory'][-1]:
 			settings[u'screenhistory'].append(settings[u'currentscreen'])
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
 
 	
 	# # # # #

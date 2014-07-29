@@ -35,6 +35,12 @@ import os
 from matplotlib import font_manager, image, pyplot
 import numpy
 import pygame
+# try importing Android, to support the Android app
+try:
+	import android
+# if the import fails, we're probably not running the Android app, so no panic
+except:
+	pass
 
 
 # # # # #
@@ -85,8 +91,14 @@ def batch_analysis(settings):
 	textsurf = settings[u'font'][u'large'][u'regular'].render(u"combining %d data files, please wait..." % (len(alldata)), False, settings[u'fgc'])
 	disp.blit(textsurf, (int(settings[u'dispcentre'][0]-textsurf.get_width()/2), int(settings[u'dispcentre'][1]-textsurf.get_height()/2)))
 	pygame.display.flip()
-	# create a new text file in a new batch folder
-	batchtxt = open(os.path.join(settings[u'dir'][u'out'], u'batch.txt'), u'w')
+	
+	# create a new output folder
+	batchoutdir = os.path.join(settings[u'dir'][u'out'], u'batch')
+	if not os.path.isdir(batchoutdir):
+		os.mkdir(batchoutdir)
+
+	# create a new text file in the new output folder
+	batchtxt = open(os.path.join(batchoutdir, u'summary.txt'), u'w')
 	# loop through all output textfiles
 	i = 0
 	for dataset in alldata:
@@ -98,12 +110,59 @@ def batch_analysis(settings):
 			# write the line to the output (and the header if this is the
 			# first file that is being read)
 			if i == 0:
-				batchtxt.write(u"ppname\tdate\ttime\t" + lines[0])
-			batchtxt.write(u"%s\t%s\t%s\t" % (dataset[:-20], dataset[-19:-9], dataset[-8:].replace(u'-',u':')) + lines[1] + u'\n')
+				batchtxt.write(lines[0])
+			batchtxt.write(lines[1] + u'\n')
 			# increase iteration number
 			i += 1
 	# close batch text file
 	batchtxt.close()
+	
+	# average all the heatmaps
+	# create an empty dict, with empty lists to contain data per maptype
+	heatmapdata = {}
+	maptypes = [u'cancellation', u'intersection', u'omission']
+	for maptype in maptypes:
+		heatmapdata[maptype] = []
+	# go through all datasets and tasktypes, to collect all heatmap data
+	for dataset in alldata:
+		# only use if the dataset is in fact a data set
+		if os.path.isdir(os.path.join(settings[u'dir'][u'out'], dataset)):
+			# collect datasets
+			for maptype in maptypes:
+				# load data
+				hm = numpy.load(os.path.join(settings[u'dir'][u'out'], dataset, u'raw_heatmap_data_%s.npy' % maptype))
+				# proportionalize data
+				hm = hm / numpy.nanmax(hm)
+				# store data
+				heatmapdata[maptype].append(copy.deepcopy(hm))
+
+	# go through map types again, to create average heatmap plots
+	for maptype in maptypes:
+		# average datasets
+		heatmapdata[maptype] = numpy.nansum(numpy.array(heatmapdata[maptype]), axis=0) / len(alldata)
+		
+		# dots per inch (float!)
+		dpi = 100.0
+		# image size in pixels
+		dispsize = (int(numpy.size(heatmapdata[maptype],axis=1)),int(numpy.size(heatmapdata[maptype],axis=0)))
+		# image size in inches
+		figsize = (dispsize[0]/dpi, dispsize[1]/dpi)
+
+		# create a new figure
+		fig = pyplot.figure(figsize=figsize, dpi=dpi, frameon=False)
+		ax = pyplot.Axes(fig, [0,0,1,1])
+		ax.set_axis_off()
+		fig.add_axes(ax)
+		# draw heatmap
+		ax.imshow(heatmapdata[maptype], cmap=u'jet', alpha=1, vmin=0, vmax=1)
+		# set the axis to the display size
+		ax.axis([0,dispsize[0],0,dispsize[1]])
+		# remove the axis grid
+		ax.axis(u'off')
+		# invert the y axis, as (0,0) is top left on a display
+		ax.invert_yaxis()
+		# save figure
+		fig.savefig(os.path.join(batchoutdir, u'%s_average_heatmap.png' % maptype))
 	
 	# show ending screen
 	disp.fill(settings[u'bgc'])
@@ -116,7 +175,10 @@ def batch_analysis(settings):
 	# wait for a click (allowing some time to unclick)
 	pygame.time.wait(200)
 	while check_mouseclicks()[0] == None:
-		pass
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
 	
 	# switch back to start screen
 	settings[u'currentscreen'] = u'start'
@@ -171,7 +233,10 @@ def start_analysis(settings):
 	# wait for a click (allowing some time to unclick)
 	pygame.time.wait(200)
 	while check_mouseclicks()[0] == None:
-		pass
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
 	
 	# switch back to start screen
 	settings[u'currentscreen'] = u'start'
@@ -373,6 +438,20 @@ class Analysis():
 			# transform clicks to targets
 			self.clicks_to_targets()
 			
+			# STOP WITHOUT CANCELLATIONS
+			if len(self.ctx) < 1:
+				# get the data file name
+				dataname = os.path.basename(self.datadir)
+				# create a new text file in the output
+				outfile = open(os.path.join(self.outdir, u"empty.txt"), u"w")
+				# write a message to this file
+				outfile.write(u"File '%s' contains no cancellations." % dataname)
+				# close the text file
+				outfile.close()
+				# stop further processing
+				return
+
+			
 			# NEGLECT MEASURES
 			# calculate the amount of omissions
 			self.calc_omissions()
@@ -400,6 +479,8 @@ class Analysis():
 			self.calc_best_r()
 			# calculate intersection rate
 			self.calc_intersect_rate()
+			# calculate the first cancellation
+			self.calc_first_cancellation()
 			
 			
 			# # # # #
@@ -769,6 +850,10 @@ class Analysis():
 		
 		"""Calculates the amount of cancellation path intersections"""
 				
+		# calculate click transformed coordinates if this has not been done
+		if not hasattr(self, u'ctx'):
+			self.clicks_to_targets()
+
 		# empty dict to hold all intersection coordinates
 		self.intersections = {u'x':[], u'y':[], u'cors':[]}
 		
@@ -795,6 +880,33 @@ class Analysis():
 		# count the amount and rate of intersections
 		self.intersections[u'total'] = len(self.intersections[u'cors'])
 		self.intersections[u'rate'] = self.intersections['total'] / float(len(self.ctcors) - self.pers[u'imm'])
+	
+	def calc_first_cancellation(self):
+		
+		"""Calculates the location of the first cancellation in normalized
+		space top-left = (0,0), bottom-right = (1,1), and determines the
+		quadrant of this first cancellation"""
+		
+		# calculate click transformed coordinates if this has not been done
+		if not hasattr(self, u'ctx'):
+			self.clicks_to_targets()
+		
+		# emtpy dict to contain data
+		self.firstcancel = {}
+
+		# normalized coordinate
+		self.firstcancel[u'norm'] = (self.ctx[0] / float(self.dispsize[0]), self.cty[0] / float(self.dispsize[1]))
+		
+		# quadrant
+		self.firstcancel[u'quad'] = u''
+		if self.firstcancel[u'norm'][1] < 0.5:
+			self.firstcancel[u'quad'] += u'top-'
+		else:
+			self.firstcancel[u'quad'] += u'bottom-'
+		if self.firstcancel[u'norm'][0] < 0.5:
+			self.firstcancel[u'quad'] += u'left'
+		else:
+			self.firstcancel[u'quad'] += u'right'
 
 	
 	# # # # #
@@ -840,6 +952,44 @@ class Analysis():
 		self.files[u'cancelpath'] = os.path.join(self.outdir, u'cancellation_path.png')
 		fig.savefig(self.files[u'cancelpath'])
 	
+	def _heatmap_maximum(self):
+		
+		"""For internal use! Calculates the theoretical maximum value of a
+		cancellation or omission heatmap"""
+		
+		# HEATMAP
+		# Gaussian
+		gwh = int(self.dispsize[0]/2)
+		gsdwh = gwh/6
+		gaus = gaussian(gwh,gsdwh)
+		# matrix of zeroes
+		strt = gwh/2
+		heatmapsize = self.dispsize[1] + 2*strt, self.dispsize[0] + 2*strt
+		heatmap = numpy.zeros(heatmapsize, dtype=float)
+		# run through all targets
+		for x, y in self.tarcors[u'cors']:
+			# correct Gaussian size if either coordinate falls outside of
+			# display boundaries
+			if (not 0 < x < self.dispsize[0]) or (not 0 < y < self.dispsize[1]):
+				hadj=[0,gwh];vadj=[0,gwh]
+				if 0 > x:
+					hadj[0] = abs(x)
+					x = 0
+				elif self.dispsize[0] < x:
+					hadj[1] = gwh - int(x-self.dispsize[0])
+				if 0 > y:
+					vadj[0] = abs(y)
+					y = 0
+				elif self.dispsize[1] < y:
+					vadj[1] = gwh - int(y-self.dispsize[1])
+				# add adjusted Gaussian to the current heatmap
+				heatmap[y:y+vadj[1],x:x+hadj[1]] += gaus[vadj[0]:vadj[1],hadj[0]:hadj[1]]
+			else:				
+				# add Gaussian to the current heatmap
+				heatmap[y:y+gwh,x:x+gwh] += gaus
+		# calculate maximum
+		self.heatmapvmax = numpy.max(heatmap)
+
 	def plot_heatmap(self, maptype=u'cancellation'):
 		
 		"""Plots a heatmap of the cancelled targets
@@ -861,6 +1011,9 @@ class Analysis():
 		# calculate click transformed coordinates if this has not been done
 		if not hasattr(self, u'ctcors'):
 			self.clicks_to_targets()
+		# calculate the heatmap maximum, if this has not been done yet
+		if not hasattr(self, u'heatmapvmax'):
+			self._heatmap_maximum()
 		
 		# DETERMINE COORDINATES
 		gauscors = []
@@ -893,27 +1046,38 @@ class Analysis():
 		heatmap = numpy.zeros(heatmapsize, dtype=float)
 		# run through all targets
 		for x, y in gauscors:
-				# correct Gaussian size if either coordinate falls outside of
-				# display boundaries
-				if (not 0 < x < self.dispsize[0]) or (not 0 < y < self.dispsize[1]):
-					hadj=[0,gwh];vadj=[0,gwh]
-					if 0 > x:
-						hadj[0] = abs(x)
-						x = 0
-					elif self.dispsize[0] < x:
-						hadj[1] = gwh - int(x-self.dispsize[0])
-					if 0 > y:
-						vadj[0] = abs(y)
-						y = 0
-					elif self.dispsize[1] < y:
-						vadj[1] = gwh - int(y-self.dispsize[1])
-					# add adjusted Gaussian to the current heatmap
-					heatmap[y:y+vadj[1],x:x+hadj[1]] += gaus[vadj[0]:vadj[1],hadj[0]:hadj[1]]
-				else:				
-					# add Gaussian to the current heatmap
-					heatmap[y:y+gwh,x:x+gwh] += gaus
+			# correct Gaussian size if either coordinate falls outside of
+			# display boundaries
+			if (not 0 < x < self.dispsize[0]) or (not 0 < y < self.dispsize[1]):
+				hadj=[0,gwh];vadj=[0,gwh]
+				if 0 > x:
+					hadj[0] = abs(x)
+					x = 0
+				elif self.dispsize[0] < x:
+					hadj[1] = gwh - int(x-self.dispsize[0])
+				if 0 > y:
+					vadj[0] = abs(y)
+					y = 0
+				elif self.dispsize[1] < y:
+					vadj[1] = gwh - int(y-self.dispsize[1])
+				# add adjusted Gaussian to the current heatmap
+				heatmap[y:y+vadj[1],x:x+hadj[1]] += gaus[vadj[0]:vadj[1],hadj[0]:hadj[1]]
+			else:				
+				# add Gaussian to the current heatmap
+				heatmap[y:y+gwh,x:x+gwh] += gaus
 		# resize heatmap
 		heatmap = heatmap[strt:self.dispsize[1]+strt,strt:self.dispsize[0]+strt]
+		
+		# SCALE TO THEORETICAL MAXIMUM
+		if maptype in [u'cancellation', u'omission']:
+			heatmap = heatmap / self.heatmapvmax
+			vmax = 1
+		else:
+			vmax = None
+		
+		# SAVE ARRAY
+		self.files[u'%srawheatmap' % maptype] = os.path.join(self.outdir, u'raw_heatmap_data_%s.npy' % maptype)
+		numpy.save(self.files[u'%srawheatmap' % maptype], heatmap)
 		
 		# HEATMAP IMAGE
 		# create a new figure
@@ -922,7 +1086,7 @@ class Analysis():
 		ax.set_axis_off()
 		fig.add_axes(ax)
 		# draw heatmap
-		ax.imshow(heatmap, cmap=u'jet', alpha=1)
+		ax.imshow(heatmap, cmap=u'jet', alpha=1, vmax=vmax)
 		# set the axis to the display size
 		ax.axis([0,self.dispsize[0],0,self.dispsize[1]])
 		# remove the axis grid
@@ -940,7 +1104,7 @@ class Analysis():
 		# remove low values from heatmap
 		else:
 			lowestval = numpy.min(heatmap)
-			lowbound = numpy.mean(heatmap[heatmap>0])
+			lowbound = 0.15 #numpy.mean(heatmap[heatmap>0])
 			heatmap[heatmap<=lowbound] = numpy.NaN
 			# hidden pixel, to re-introduce lowest value (for colour scaling)
 			heatmap[0][0] = lowestval
@@ -950,15 +1114,13 @@ class Analysis():
 		ax.set_axis_off()
 		fig.add_axes(ax)
 		# draw heatmap
-		ax.imshow(heatmap, cmap=u'jet', alpha=1)
+		ax.imshow(heatmap, cmap=u'jet', alpha=1, vmax=vmax)
 		# set the axis to the display size
 		ax.axis([0,self.dispsize[0],0,self.dispsize[1]])
 		# remove the axis grid
 		ax.axis(u'off')
 		# invert the y axis, as (0,0) is top left on a display
 		ax.invert_yaxis()
-		# draw heatmap
-		ax.imshow(heatmap, cmap=u'jet', alpha=1)
 		# save figure
 		self.files[u'%salphaheatmap' % maptype] = os.path.join(self.outdir, u'%s_heatmap_transparant.png'  % maptype)
 		fig.savefig(self.files[u'%salphaheatmap' % maptype])
@@ -1027,31 +1189,85 @@ class Analysis():
 		
 		"""Creates a simple text file, containing all the measures"""
 		
+		# CHECKS
+		# check if the omissions have been calculated
+		if not hasattr(self, u'omissions'):
+			self.calc_omissions()
+		# check if the centre of cancellation has been calculated
+		if not hasattr(self, u'coc'):
+			self.calc_centre_of_cancellation()
+		# check if the omissions have been calculated
+		if hasattr(self, u'pers'):
+			if u'tot' not in self.pers.keys():
+				self.calc_total_revisits()
+			if u'imm' not in self.pers.keys():
+				self.calc_immediate_revisits()
+			if u'del' not in self.pers.keys():
+				self.calc_delayed_revisits()
+		else:
+			self.calc_total_revisits()
+			self.calc_immediate_revisits()
+			self.calc_delayed_revisits()
+		# check if the standardized interdistance has been calculated
+		if hasattr(self, u'intdist'):
+			if not u'standardized' in self.intdist.keys():
+				self.calc_stand_interdist()
+		else:
+			self.calc_stand_interdist()
+		# check if the intertime has been calculated
+		if not hasattr(self, u'inttime'):
+			self.calc_mean_intertime()
+		# check if the search speed has been calculated
+		if not hasattr(self, u'searchspd'):
+			self.calc_search_speed()
+		# check if the Q score has been calculated
+		if not hasattr(self, u'qscore'):
+			self.calc_qscore()
+		# check if the standardized angle has been calculated
+		if hasattr(self, u'angle'):
+			if not u'standardized' in self.angle.keys():
+				self.calc_stand_angle()
+		else:
+			self.calc_stand_angle()
+		# check if the best R has been calculated
+		if not hasattr(self, u'bestr'):
+			self.calc_best_r()
+		# check if the intersection rate has been calculated
+		if not hasattr(self, u'intersections'):
+			self.calc_intersect_rate()
+		# check if the first cancellation has been calculated
+		if not hasattr(self, u'firstcancel'):
+			self.calc_first_cancellation()
+		
 		# open a new textfile
 		self.files[u'txt'] = os.path.join(self.outdir, u'summary.txt')
 		txtfile = open(self.files[u'txt'], 'w')
 		
 		# write the header to the file
-		header = [u'om_tot',u'om_left',u'om_right', \
-				u'pers_tot',u'pers_imm', u'pers_del', \
+		header = [	u'ppname', u'taskname', u'testdate', u'testtime', \
+				u'om_tot',u'om_left',u'om_right', \
+				u'revisits_tot',u'revisits_imm', u'revisits_del', \
 				u'CoC_hor',u'CoC_ver', \
 				u'duration',u'mean_intertime', u'Qscore', \
 				u'mean_interdist', u'stand_interdist',u'speed', \
 				u'mean_angle',u'stand_angle', \
 				u'bestR',u'hor_R',u'ver_R', \
-				u'intersect_tot',u'intersect_rate']
+				u'intersect_tot',u'intersect_rate', \
+				u'first_cancel_x', u'first_cancel_y', u'first_quadrant']
 		txtfile.write(u"\t".join(header))
 		txtfile.write(u"\n")
 		
 		# write the output to the file
-		output = [self.omissions[u'total'],self.omissions[u'left'],self.omissions[u'right'], \
+		output = [	self.ppname, self.taskname, self.testdate, self.testtime, \
+				self.omissions[u'total'],self.omissions[u'left'],self.omissions[u'right'], \
 				self.pers[u'tot'],self.pers[u'imm'],self.pers[u'del'], \
 				self.coc[u'x'],self.coc[u'y'], \
 				self.duration['total']/1000, self.inttime[u'mean']/1000.0, self.qscore, \
 				self.intdist[u'mean'], self.intdist[u'standardized'], self.searchspd, \
-				self.angle[u'standardized'], self.angle[u'standardized'], \
+				self.angle[u'mean'], self.angle[u'standardized'], \
 				self.bestr[u'best'], self.bestr[u'x'], self.bestr[u'y'], \
-				self.intersections[u'total'], self.intersections[u'rate']
+				self.intersections[u'total'], self.intersections[u'rate'], \
+				self.firstcancel[u'norm'][0], self.firstcancel[u'norm'][1], self.firstcancel[u'quad']
 				]
 		output = map(unicode, output)
 		txtfile.write(u"\t".join(output))
@@ -1114,6 +1330,9 @@ class Analysis():
 		# check if the intersection rate has been calculated
 		if not hasattr(self, u'intersections'):
 			self.calc_intersect_rate()
+		# check if the first cancellation has been calculated
+		if not hasattr(self, u'firstcancel'):
+			self.calc_first_cancellation()
 		# check if the cancellation path has been plotted
 		if not u'cancelpath' in self.files.keys():
 			self.plot_cancellation_path()

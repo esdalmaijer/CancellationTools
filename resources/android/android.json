@@ -1,0 +1,10 @@
+{"layout": "internal",
+"orientation": "landscape",
+"package": "org.pygaze.cancellationtools",
+"include_pil": true,
+"name": "CancellationTools",
+"icon_name": "CancellationTools",
+"version": "1.2.2",
+"permissions": ["VIBRATE"],
+"include_sqlite": false,
+"numeric_version": "122"}

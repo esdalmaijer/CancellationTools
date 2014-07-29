@@ -34,6 +34,12 @@ import time
 # external
 import numpy
 import pygame
+# try importing Android, to support the Android app
+try:
+	import android
+# if the import fails, we're probably not running the Android app, so no panic
+except:
+	pass
 
 
 # # # # #
@@ -107,7 +113,11 @@ def start_task(settings):
 	# wait for a click (allowing some time to unclick)
 	pygame.time.wait(200)
 	while check_mouseclicks()[0] == None:
-		pass
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
+
 	
 	# switch back to start screen
 	settings[u'currentscreen'] = u'start'
@@ -183,11 +193,14 @@ class Task():
 						u'bgc':None,
 						u'pw':int(taskproperties[u'pw']),
 						u'ow':int(taskproperties[u'ow']),
-						u'input':u'mouse'}
+						u'input':u'mouse',
+						u'sound':taskproperties[u'sound']==u'o',
+						u'clickcorrect':taskproperties[u'clickcorrect']==u'o'}
 		self.ppname = settings[u'ppname']
 		self.savebutton = {	u'fgc':settings[u'colours'][u'aluminium'][0],
 						u'bgc':settings[u'colours'][u'chameleon'][2],
 						u'font':settings[u'font'][u'medium'][u'bold']}
+		self.cancellationsound = settings[u'sounds']['cancellation']
 
 		# current time
 		try:
@@ -202,14 +215,17 @@ class Task():
 		self.outdir = os.path.join(settings[u'dir'][u'rawout'], u"%s_%s_%s" % (self.ppname, self.date, self.time.replace(u':',u'-')))
 
 		# check if a path to the task was provided
-		if taskproperties[u'taskpath'] != None:
+		if taskproperties[u'taskpath'] != None and settings[u'newtaskname'] == None:
 			self.existing = True
 			self.path = taskproperties[u'taskpath']
 			self.name = os.path.split(self.path)[1]
 		# if not, use a new name (format: "yyyy_mm_dd_hh:mm:ss")
 		else:
 			self.existing = False
-			self.name = u"%s_%s" % (self.date, self.time)
+			try:
+				self.name = settings[u'newtaskname']
+			except:
+				self.name = u"%s_%s" % (self.date, self.time)
 			self.name = self.name.replace(u':',u'-') # Windows proof filename
 			self.path = os.path.join(settings['dir']['tasks'], self.name)
 		
@@ -280,20 +296,50 @@ class Task():
 			# check if the file exists
 			if not os.path.isdir(self.path):
 				preperror = u"task '%s' (full path '%s') not found" % (self.name,self.path)
-			# load the image
+			# load the task
 			else:
+				# load the image
 				self.image = pygame.image.load(os.path.join(self.path, u'task.png'))
+				
+				# load the stimulus coordinates
+				stimx = []
+				stimy = []
+				lines = []
+				# open, read, and close target file
+				tf = open(os.path.join(self.path, u'targets.txt'))
+				l = tf.readlines()
+				l.pop(0)
+				lines.extend(l)
+				tf.close()
+				# open, read and close distractor file (if it exists)
+				if os.path.isfile(os.path.join(self.path, u'distractors.txt')):
+					df = open(os.path.join(self.path, u'distractors.txt'))
+					l = df.readlines()
+					l.pop(0)
+					lines.extend(l)
+					df.close()
+				# loop through lines
+				for line in lines:
+					line = line.replace(u'\n', u'').replace(u'\r', u'').split(u'\t')
+					stimx.append(int(line[1]))
+					stimy.append(int(line[2]))
+				# lists to arrays
+				self.stimx = numpy.array(stimx)
+				self.stimy = numpy.array(stimy)
 		
 		# FROM PROPERTIES
 		else:
 			# create new directory
 			os.mkdir(self.path)
 
-			# open text file to save target locations
+			# open text files to save stimulus locations
 			tf = open(os.path.join(self.path, u'targets.txt'), 'w')
-			# write header
+			df = open(os.path.join(self.path, u'distractors.txt'), 'w')
+			# write headers
 			header = [u"target", u"x", u"y"]
 			tf.write(u'\t'.join(header) + u"\n")
+			dheader = [u"distractor", u"x", u"y"]
+			df.write(u'\t'.join(dheader) + u"\n")
 			
 			# create new Surface
 			self.image = pygame.Surface(self.dispsize)
@@ -388,6 +434,8 @@ class Task():
 				else:
 					# set direction to a random distractor
 					direction = random.choice(self.properties[u'distractor'])
+					# write stimulus coordinates to file
+					df.write(u"%s\t%d\t%d\n" % (direction,int(stimx[i]+self.properties[u'stimsize']/2),int(stimy[i]+self.properties[u'stimsize']/2)))
 				# draw stimulus (size, direction, fgc, bgc, pw, ow)
 				surf = draw_Landolt_C(self.properties[u'stimsize'],
 								direction,
@@ -398,11 +446,16 @@ class Task():
 				# blit distractor to image
 				self.image.blit(surf, (stimx[i],stimy[i]))
 
-			# neatly close text file with stimulus coordinates
+			# neatly close text files with stimulus coordinates
 			tf.close()
+			df.close()
 
 			# save task image
 			pygame.image.save(self.image, os.path.join(self.path, u'task.png'))
+			
+			# store stimulus coordinates
+			self.stimx = stimx + self.properties[u'stimsize']/2
+			self.stimy = stimy + self.properties[u'stimsize']/2
 
 
 	def run(self):
@@ -477,21 +530,30 @@ class Task():
 						running = False
 					# if the click was not on the save button
 					else:
+						# reset the click position to the nearest
+						# stimulus if this setting is enables
+						if self.properties[u'clickcorrect']:
+							# find the closest stimulus
+							dist = ((self.stimx - event.pos[0])**2 + (self.stimy - event.pos[1])**2)**0.5
+							# set the new position
+							pos = (self.stimx[numpy.argmin(dist)], self.stimy[numpy.argmin(dist)])
+						else:
+							pos = event.pos
 						# get timestamp
 						t1 = pygame.time.get_ticks()
 						# write position to output file
-						line = [self.ppname, self.name, self.date, self.time, self.properties[u'input'], self.properties[u'visible'], unicode(t1-t0), unicode(event.pos[0]), unicode(event.pos[1])]
+						line = [self.ppname, self.name, self.date, self.time, self.properties[u'input'], self.properties[u'visible'], unicode(t1-t0), unicode(pos[0]), unicode(pos[1])]
 						outfile.write(u'\t'.join(line) + u'\n')
 						# draw a cross centered around the click position,
 						# with starting and ending positions based on click
-						spos = [	[int(event.pos[0]-self.properties[u'stimsize']/2),	# top left x
-								int(event.pos[1]-self.properties[u'stimsize']/2)],	# top left y
-								[int(event.pos[0]-self.properties[u'stimsize']/2),	# bottom left x
-								int(event.pos[1]+self.properties[u'stimsize']/2)]]	# bottom left y
-						epos = [	[int(event.pos[0]+self.properties[u'stimsize']/2),	# bottom right x
-								int(event.pos[1]+self.properties[u'stimsize']/2)],	# bottom right y
-								[int(event.pos[0]+self.properties[u'stimsize']/2),	# top right x
-								int(event.pos[1]-self.properties[u'stimsize']/2)]]	# top right y
+						spos = [	[int(pos[0]-self.properties[u'stimsize']/2),	# top left x
+								int(pos[1]-self.properties[u'stimsize']/2)],	# top left y
+								[int(pos[0]-self.properties[u'stimsize']/2),	# bottom left x
+								int(pos[1]+self.properties[u'stimsize']/2)]]	# bottom left y
+						epos = [	[int(pos[0]+self.properties[u'stimsize']/2),	# bottom right x
+								int(pos[1]+self.properties[u'stimsize']/2)],	# bottom right y
+								[int(pos[0]+self.properties[u'stimsize']/2),	# top right x
+								int(pos[1]-self.properties[u'stimsize']/2)]]	# top right y
 						# draw lines
 						pygame.draw.line(disp, self.properties[u'fgc'], spos[0], epos[0], self.properties[u'pw'])
 						pygame.draw.line(disp, self.properties[u'fgc'], spos[1], epos[1], self.properties[u'pw'])
@@ -499,6 +561,10 @@ class Task():
 						# supposed to be visible
 						if self.properties[u'visible'] == u'visible':
 							pygame.display.flip()
+						# play a sound if the sound-on-cancellation
+						# is required
+						if self.properties[u'sound']:
+							self.cancellationsound.play()
 
 		# after running, close the textfile
 		outfile.close()

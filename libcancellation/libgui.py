@@ -31,9 +31,16 @@ import libtask
 # native
 import copy
 import os
+import time
 
 # external
 import pygame
+# try importing Android, to support the Android app
+try:
+	import android
+# if the import fails, we're probably not running the Android app, so no panic
+except:
+	pass
 
 
 # # # # #
@@ -263,23 +270,47 @@ def load_scan(settings):
 	savetext = settings[u'font'][u'medium'][u'bold'].render(u"save", False, settings[u'fgc'])
 	savetextpos = (int(saverect[0]+saverect[2]/2 - savetext.get_width()/2),
 				int(saverect[1]+saverect[3]/2 - savetext.get_height()/2))
-	# click interaction, until Space is pressed
+	# backspace button properties
+	backrect = [	int(0),
+				int(settings[u'dispsize'][1]-settings[u'dispsize'][1]/20),
+				int(settings[u'dispsize'][0]/20),
+				int(settings[u'dispsize'][1]/20)]
+	backtext = settings[u'font'][u'medium'][u'bold'].render(u"back", False, settings[u'fgc'])
+	backtextpos = (int(backrect[0]+backrect[2]/2 - backtext.get_width()/2),
+				int(backrect[1]+backrect[3]/2 - backtext.get_height()/2))
+	# click interaction
 	targets = []
+	distractors = []
 	running = True
 	while running:
 		# get the mouse state
 		button, pos = check_mouseclicks()
 		# handle the mouse input
 		if button != None:
-			# on a left click, append the current position
-			if button == 1 and not check_click(pos, saverect):
-				targets.append(pos)
-			# on a left click on the save button, save the current task
-			elif button == 1 and check_click(pos, saverect):
-				running = False
-			# on any other click, pop the last position
+			# on a left click, do stuff to the targets
+			if button == 1:
+				# save the current task
+				if check_click(pos, saverect):
+					running = False
+				# omit the last target
+				elif check_click(pos, backrect):
+					if len(targets) > 0:
+						targets.pop()
+				# append the current position to targets
+				else:
+					targets.append(pos)
+			# on any other button click, do stuff to the distractors
 			else:
-				targets.pop()
+				# save the current task
+				if check_click(pos, saverect):
+					running = False
+				# omit the last target
+				elif check_click(pos, backrect):
+					if len(distractors) > 0:
+						distractors.pop()
+				# append the current position to targets
+				else:
+					distractors.append(pos)
 			# reset the screen
 			disp.blit(image, (0,0))
 			# draw the targets
@@ -296,17 +327,40 @@ def load_scan(settings):
 						int(pos[1]+20)],	# bottom right y
 						[int(pos[0]+20),	# top right x
 						int(pos[1]-20)]]	# top right y
+				pygame.draw.line(disp, settings[u'colours'][u'chameleon'][2], spos[0], epos[0], 3)
+				pygame.draw.line(disp, settings[u'colours'][u'chameleon'][2], spos[1], epos[1], 3)
+			# draw the distractors
+			for i in range(len(distractors)):
+				# get the target position
+				pos = distractors[i]
+				# draw a cross centered around the click position,
+				# with starting and ending positions based on click
+				spos = [	[int(pos[0]-20),	# top left x
+						int(pos[1]-20)],	# top left y
+						[int(pos[0]-20),	# bottom left x
+						int(pos[1]+20)]]	# bottom left y
+				epos = [	[int(pos[0]+20),	# bottom right x
+						int(pos[1]+20)],	# bottom right y
+						[int(pos[0]+20),	# top right x
+						int(pos[1]-20)]]	# top right y
 				pygame.draw.line(disp, settings[u'colours'][u'scarletred'][2], spos[0], epos[0], 3)
 				pygame.draw.line(disp, settings[u'colours'][u'scarletred'][2], spos[1], epos[1], 3)
-				# show save button
-				disp.fill(settings[u'colours'][u'chameleon'][2], saverect)
-				disp.blit(savetext, savetextpos)
+			# show save button
+			disp.fill(settings[u'colours'][u'chameleon'][2], saverect)
+			disp.blit(savetext, savetextpos)
+			# show back button
+			disp.fill(settings[u'colours'][u'skyblue'][2], backrect)
+			disp.blit(backtext, backtextpos)
 			# show the screen
 			pygame.display.flip()
 			# wait a bit, to allow to unclick
 			pygame.time.wait(200)
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
 	
-	# REMOVE DOUBLE TARGETS
+	# REMOVE DOUBLES
 	# loop through all coordinates
 	for c in targets:
 		# check if the coordinate occurs more than once
@@ -314,6 +368,13 @@ def load_scan(settings):
 			# if the coordinate occurs more, throw it out
 			i = targets.index(c)
 			targets.pop(i)
+	# loop through all coordinates
+	for c in distractors:
+		# check if the coordinate occurs more than once
+		if distractors.count(c) > 1:
+			# if the coordinate occurs more, throw it out
+			i = distractors.index(c)
+			distractors.pop(i)
 	# SAVE TARGETS
 	# open text file to save target locations
 	tf = open(os.path.join(settings['taskproperties'][u'taskpath'], u'targets.txt'), 'w')
@@ -325,6 +386,17 @@ def load_scan(settings):
 		tf.write(u"%s\t%d\t%d\n" % (u'scan',targets[i][0],targets[i][1]))
 	# close the file
 	tf.close()
+	# SAVE DISTRACTORS
+	# open text file to save target locations
+	df = open(os.path.join(settings['taskproperties'][u'taskpath'], u'distractors.txt'), 'w')
+	# write header
+	dheader = [u"distractor", u"x", u"y"]
+	df.write(u'\t'.join(dheader) + u"\n")
+	# write the target locations
+	for i in range(len(distractors)):
+		df.write(u"%s\t%d\t%d\n" % (u'scan',distractors[i][0],distractors[i][1]))
+	# close the file
+	df.close()
 
 	# now that the task has been selected and targets have been indicated,
 	# run the after task selection screen (after this, the task starts)
@@ -506,7 +578,6 @@ def run_colourpicker(settings):
 	# update display
 	pygame.display.flip()
 	
-	
 	return settings
 
 
@@ -584,7 +655,7 @@ def save_and_start_analysis(settings):
 
 def save_and_start_task(settings):
 	
-	"""Saves the task settings (after task selection), and starts the task"""
+	"""Applies settings, and starts the task"""
 
 	# loop through all buttons
 	for b in settings[u'guibuttons'][settings[u'currentscreen']].keys():
@@ -598,6 +669,12 @@ def save_and_start_task(settings):
 		elif b == 2:
 			exec("colourtuple = %s" % settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
 			settings[u'taskproperties'][u'fgc'] = colourtuple
+		# cancellation sound
+		if b == 3:
+			settings[u'taskproperties'][u'sound'] = unicode(settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
+		# cancellation position correction
+		if b == 4:
+			settings[u'taskproperties'][u'clickcorrect'] = unicode(settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
 		
 	return libtask.start_task(settings)
 
@@ -618,7 +695,9 @@ def save_task_settings(settings):
 							u'fgc':(0,0,0),
 							u'pw':3,
 							u'ow':20,
-							u'input':u'mouse'}
+							u'input':u'mouse',
+							u'sound':u'x',
+							u'clickcorrect':u'x'}
 
 	# Landol C buttons
 	lcbuttons = [u'o',u'u',u'd',u'l',u'r']
@@ -627,10 +706,10 @@ def save_task_settings(settings):
 	for b in settings[u'guibuttons'][settings[u'currentscreen']].keys():
 		# input type
 		if b == 0:
-			settings[u'taskproperties'][u'input'] = unicode(settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
+			settings[u'taskproperties'][u'stimsize'] = unicode(settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
 		# cancellation visibility
 		elif b == 1:
-			settings[u'taskproperties'][u'visible'] = unicode(settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
+			settings[u'taskproperties'][u'ow'] = unicode(settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
 		# Ntargets
 		elif b == 2:
 			settings[u'taskproperties'][u'ntargets'] = int(settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'])
@@ -654,10 +733,54 @@ def save_task_settings(settings):
 			if settings[u'guibuttons'][settings[u'currentscreen']][b][u'text'] == u"o":
 				settings[u'taskproperties'][u'distractor'].append(lcbuttons[range(11,16).index(b)])
 	
-	# change the screen back to the start screen
-	#settings = back_to_start(settings)
+	# ask for the task name
+	# get display
+	disp = pygame.display.get_surface()	
+	# inputrect
+	inputrect = [	int(settings[u'dispcentre'][0]-settings[u'dispsize'][0]/4),
+				int(settings[u'dispcentre'][1]-settings[u'dispsize'][1]/12),
+				int(settings[u'dispsize'][0]/2),
+				int(settings[u'dispsize'][0]/6)]
+	# draw text input screen	
+	disp.fill(settings[u'bgc'])
+	textsurf = settings[u'font'][u'large'][u'regular'].render(u"please provide a name for your new task", False, settings[u'fgc'])
+	disp.blit(textsurf, (int(settings[u'dispcentre'][0]-textsurf.get_width()/2), int(settings[u'dispsize'][1]/4-textsurf.get_height()/2)))
+	disp.fill(settings[u'tfbgc'], inputrect)
+	pygame.display.flip()
 	
-	return libtask.start_task(settings)
+	# current date and time as default task name
+	try:
+		cdate = time.strftime(u"%Y-%m-%d")
+		ctime = time.strftime(u"%T")
+	except:
+		ct = time.localtime()
+		cdate = time.strftime(u"%4.f-%2.f-%2.f" % (ct.tm_year, ct.tm_mon, ct.tm_mday))
+		ctime = time.strftime(u"%2.f:%2.f:%2.f" % (ct.tm_hour, ct.tm_min, ct.tm_sec))
+		cdate = cdate.replace(u' ', '0')
+		ctime = ctime.replace(u' ', '0')
+	settings[u'newtaskname'] = u"%s_%s" % (cdate, ctime)
+	settings[u'newtaskname'] = settings[u'newtaskname'].replace(u':',u'-')
+	
+	# fool text input by replacing text for currently active button
+	oldtxt = copy.copy(settings[u'guibuttons'][settings[u'currentscreen']][settings[u'currentbutton']][u'text'])
+	settings[u'guibuttons'][settings[u'currentscreen']][settings[u'currentbutton']][u'text'] = copy.copy(settings[u'newtaskname'])
+	# ask for the participant name
+	settings[u'newtaskname'] = textfield(inputrect, settings[u'font'][u'large'][u'regular'], settings, loadtext=True)
+	# reset text for currently active button
+	settings[u'guibuttons'][settings[u'currentscreen']][settings[u'currentbutton']][u'text'] = copy.copy(oldtxt)	
+	
+	# create a new task instance
+	task = libtask.Task(settings)
+	# call the prepare method, this will create a new Landolt C task
+	task.prepare()
+
+	# delete the task instance
+	del task	
+	# reset task name to None
+	settings[u'newtaskname'] = None
+
+	# change the screen back to the start screen
+	return back_to_start(settings)
 
 
 def select_this_dataset(settings):
@@ -686,7 +809,10 @@ def select_this_dataset(settings):
 	# wait for a click (allow time to unclick first)
 	pygame.time.wait(200)
 	while check_mouseclicks()[0] == None:
-		pass
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
 	
 	return after_data_selection(settings)
 
@@ -741,7 +867,10 @@ def select_this_task(settings):
 	# wait for a click (allow time to unclick first)
 	pygame.time.wait(200)
 	while check_mouseclicks()[0] == None:
-		pass
+		# allow an Android interrupt
+		if settings[u'android']:
+			if android.check_pause():
+				android.wait_for_resume()	
 	
 	return after_task_selection(settings)
 
@@ -828,10 +957,10 @@ def aftertaskselectionscreen(settings):
 	the foreground colour (for the cancellation marks)
 	
 			task settings
-		input type	(0) [mouse]
-		cancellation	(1) [visible]
+		input type	(0) [mouse]			clicksound (3) [x]
+		cancellation	(1) [visible]	clickcorrect (4) [x]
 		mark colour	(2) [(0,0,0)]
-			(3) [save]
+			(5) [save]
 
 	arguments
 	
@@ -874,13 +1003,16 @@ def aftertaskselectionscreen(settings):
 	
 	# TEXTS
 	# text properties
+	x = [int(2*ds[0]/9), int(5*ds[0]/9)]
 	y = [int(2*ds[1]/6), int(3*ds[1]/6), int(4*ds[1]/6)]
-	texts = [u"input",u"cancellations",u"mark colour"]
+	texts = [	[u"input",u"cancellations",u"mark colour"],
+			[u"marking sound",u"mark correction"]]
 	# render and blit texts
-	for i in range(len(texts)):
-		textsurf = settings[u'font'][u'medium'][u'regular'].render(texts[i], False, settings[u'fgc'])
-		textpos = (int(4*ds[0]/9 - textsurf.get_width()/2), int(ds[1]/20 + y[i] - textsurf.get_height()/2))
-		screen.blit(textsurf, textpos)
+	for j in range(len(texts)):
+		for i in range(len(texts[j])):
+			textsurf = settings[u'font'][u'medium'][u'regular'].render(texts[j][i], False, settings[u'fgc'])
+			textpos = (x[j] - textsurf.get_width()/2, int(ds[1]/20 + y[i] - textsurf.get_height()/2))
+			screen.blit(textsurf, textpos)
 	
 	# BUTTONS
 	# dict containing on/off button states
@@ -891,25 +1023,37 @@ def aftertaskselectionscreen(settings):
 	buttdict[1] = cd[settings['taskproperties'][u'visible']]
 	# button dict
 			# input type
-	buttons = {0:{	u'rect':[int(5*ds[0]/9), y[0], int(ds[0]/9), int(ds[1]/10)],
+	buttons = {0:{	u'rect':[int(3*ds[0]/9), y[0], int(ds[0]/9), int(ds[1]/10)],
 				u'text':unicode(settings['taskproperties'][u'input']),
 				u'font':u'bold',
 				u'colour':settings[u'onoffcol'][buttdict[0]],
 				u'onclick':change_state},
 			# cancellation visibility
-			1:{	u'rect':[int(5*ds[0]/9), y[1], int(ds[0]/9), int(ds[1]/10)],
+			1:{	u'rect':[int(3*ds[0]/9), y[1], int(ds[0]/9), int(ds[1]/10)],
 				u'text':u"visible",
 				u'font':u'bold',
 				u'colour':settings[u'onoffcol'][buttdict[1]],
 				u'onclick':change_state},
 			# FGC
-			2:{	u'rect':[int(5*ds[0]/9), y[2], int(ds[0]/9), int(ds[1]/10)],
+			2:{	u'rect':[int(3*ds[0]/9), y[2], int(ds[0]/9), int(ds[1]/10)],
 				u'text':unicode(settings['taskproperties'][u'fgc']),
 				u'font':u'bold',
 				u'colour':settings['taskproperties'][u'fgc'],
 				u'onclick':run_colourpicker},
+			# mark sound
+			3:{	u'rect':[int(6*ds[0]/9), y[0], int(ds[0]/9), int(ds[1]/10)],
+				u'text':unicode(settings['taskproperties'][u'sound']),
+				u'font':u'bold',
+				u'colour':settings[u'onoffcol'][settings['taskproperties'][u'sound']],
+				u'onclick':change_state},
+			# cancellation position correction
+			4:{	u'rect':[int(6*ds[0]/9), y[1], int(ds[0]/9), int(ds[1]/10)],
+				u'text':unicode(settings['taskproperties'][u'clickcorrect']),
+				u'font':u'bold',
+				u'colour':settings[u'onoffcol'][settings['taskproperties'][u'clickcorrect']],
+				u'onclick':change_state},
 			# save button
-			3:{	u'rect':[int(ds[0]/4), int(5*ds[1]/6), int(ds[0]/2), int(ds[1]/10)],
+			5:{	u'rect':[int(ds[0]/4), int(5*ds[1]/6), int(ds[0]/2), int(ds[1]/10)],
 				u'text':u"start the task",
 				u'font':u'bold',
 				u'colour':settings[u'colours'][u'chameleon'][2],
@@ -1545,8 +1689,8 @@ def startscreen(settings):
 	
 	"""Draws the starting screen, showing the title and four buttons:
 					CancellationTools
-			(0) task		-	(1) task settings
-			(2) analysis	-	(3) analysis settings
+			(0) run task	-	(1) create new task
+			(2) run analysis	-	(3) EMPTY
 	
 	arguments
 	
@@ -1597,17 +1741,17 @@ def startscreen(settings):
 	top = int(ds[1]/3)
 	margin = [int(ds[0]/9), int(ds[1]/6)]
 	buttsize = [int(ds[0]/3), int(ds[1]/6)]
-	buttons = {0:{	u'rect':[int(1.5*margin[0]), top, 2*buttsize[0], buttsize[1]],
+	buttons = {0:{	u'rect':[margin[0], top, buttsize[0], buttsize[1]],
 				u'text':u"run task",
 				u'font':u'bold',
 				u'colour':settings[u'colours'][u'chameleon'][2],
-				u'onclick':task_options}, # libtask.start_task
-#			1:{	u'rect':[2*margin[0]+buttsize[0], top, buttsize[0], buttsize[1]],
-#				u'text':u"task settings",
-#				u'font':u'bold',
-#				u'colour':settings[u'colours'][u'chameleon'][1],
-#				u'onclick':task_options},
-			2:{	u'rect':[int(1.5*margin[0]), top+buttsize[1]+margin[1], 2*buttsize[0], buttsize[1]], # margin[0], top+buttsize[1]+margin[1], buttsize[0], buttsize[1]
+				u'onclick':task_selection}, # libtask.start_task
+			1:{	u'rect':[2*margin[0]+buttsize[0], top, buttsize[0], buttsize[1]],
+				u'text':u"create new task",
+				u'font':u'bold',
+				u'colour':settings[u'colours'][u'chameleon'][1],
+				u'onclick':task_options},
+			2:{	u'rect':[margin[0], top+buttsize[1]+margin[1], 2*buttsize[0]+margin[0], buttsize[1]], # margin[0], top+buttsize[1]+margin[1], buttsize[0], buttsize[1]
 				u'text':u"run analysis",
 				u'font':u'bold',
 				u'colour':settings[u'colours'][u'skyblue'][2],
@@ -1684,11 +1828,11 @@ def taskoptionsscreen(settings):
 	margin = [int(ds[0]/4), int(ds[1]/4)]
 	buttsize = [int(ds[0]/2), int(ds[1]/6)]
 	top = int(ds[1]/4 - buttsize[1]/2)
-	buttons = {0:{	u'rect':[margin[0], top, buttsize[0], buttsize[1]],
-				u'text':u"select a task",
-				u'font':u'bold',
-				u'colour':settings[u'colours'][u'chameleon'][2],
-				u'onclick':task_selection},
+	buttons = {#0:{	u'rect':[margin[0], top, buttsize[0], buttsize[1]],
+#				u'text':u"select a task",
+#				u'font':u'bold',
+#				u'colour':settings[u'colours'][u'chameleon'][2],
+#				u'onclick':task_selection},
 			1:{	u'rect':[margin[0], top+margin[1], buttsize[0], buttsize[1]],
 				u'text':u"create a new task",
 				u'font':u'bold',
@@ -1902,10 +2046,6 @@ def tasksettingsscreen(settings):
 	buttdict[stimdict[settings['taskproperties'][u'target']][0]] = u'o'
 	for d in settings['taskproperties'][u'distractor']:
 		buttdict[stimdict[d][1]] = u'o'
-	# input and cancellation visibility
-	cd = {u'visible':u'o',u'invisible':u'x',u'mouse':u'o',u'touch':u'x'}
-	buttdict[0] = cd[settings['taskproperties'][u'input']]
-	buttdict[1] = cd[settings['taskproperties'][u'visible']]
 
 	# STARTUP VISUALS
 	# convenience renaming
@@ -1926,8 +2066,8 @@ def tasksettingsscreen(settings):
 	screen.blit(titsurf,titpos)
 	
 	# TEXTS
-	texts = {	u"input":(int(2*ds[0]/18), int(7*ds[1]/18)),
-			u"cancellations":(int(6*ds[0]/18), int(7*ds[1]/18)),
+	texts = {	u"diameter":(int(2*ds[0]/18), int(7*ds[1]/18)),
+			u"opening":(int(6*ds[0]/18), int(7*ds[1]/18)),
 			u"targets":(int(2*ds[0]/18), int(9*ds[1]/18)),
 			u"FGC":(int(6*ds[0]/18), int(9*ds[1]/18)),
 			u"distractors":(int(2*ds[0]/18), int(11*ds[1]/18)),
@@ -1962,18 +2102,18 @@ def tasksettingsscreen(settings):
 	# horizontal margin total: 1/3, button width (*2): 1/3
 	# title height: 1/3, button height (*2): 1/6, margin hight (*2): 1/6
 	# button specs
-			# input type
+			# stimulus size (diameter)
 	buttons = {0:{	u'rect':[int(3*ds[0]/18), int(ds[1]/3), int(ds[0]/9), int(ds[1]/10)],
-				u'text':unicode(settings['taskproperties'][u'input']),
+				u'text':unicode(settings['taskproperties'][u'stimsize']),
 				u'font':u'bold',
-				u'colour':settings[u'onoffcol'][buttdict[0]],
-				u'onclick':change_state},
-			# cancellation visibility
+				u'colour':settings[u'tfbgc'],
+				u'onclick':run_numfield},
+			# opening size
 			1:{	u'rect':[int(7*ds[0]/18), int(ds[1]/3), int(ds[0]/9), int(ds[1]/10)],
-				u'text':u"visible",
+				u'text':unicode(settings['taskproperties'][u'ow']),
 				u'font':u'bold',
-				u'colour':settings[u'onoffcol'][buttdict[1]],
-				u'onclick':change_state},
+				u'colour':settings[u'tfbgc'],
+				u'onclick':run_numfield},
 			# ntargets
 			2:{	u'rect':[int(3*ds[0]/18), int(ds[1]/3 + ds[1]/9), int(ds[0]/9), int(ds[1]/10)],
 				u'text':unicode(settings['taskproperties'][u'ntargets']),
@@ -2060,7 +2200,7 @@ def tasksettingsscreen(settings):
 				u'onclick':change_state},
 			# save changes
 			16:{	u'rect':[int(ds[0]/3), int(7*ds[1]/9), int(ds[0]/3), int(ds[1]/9)],
-				u'text':u"start the task",
+				u'text':u"save the task",
 				u'font':u'bold',
 				u'colour':settings[u'colours'][u'chameleon'][2],
 				u'onclick':save_task_settings}
