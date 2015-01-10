@@ -42,6 +42,11 @@ try:
 except:
 	pass
 
+# DEBUG #
+#from androidfriendly.matplotlib import font_manager, image, pyplot
+#import androidfriendly.numpy as numpy
+# # # # #
+
 
 # # # # #
 # FUNCTIONS
@@ -551,6 +556,7 @@ class Analysis():
 			self.read_target_cors()
 
 		# empty lists for click-target transformed (ct) coordinates
+		self.ctt = []
 		self.ctx = []
 		self.cty = []
 		self.ctcors = []
@@ -563,6 +569,7 @@ class Analysis():
 			clickcor = numpy.argmin(dist)
 			if dist[clickcor]**0.5 < self.properties[u'disthreshold']:
 					# add transformed click to lists
+					self.ctt.append(self.time[i])
 					self.ctx.append(self.tarcors[u'x'][clickcor])
 					self.cty.append(self.tarcors[u'y'][clickcor])
 					self.ctcors.append((self.ctx[-1],self.cty[-1]))
@@ -615,10 +622,12 @@ class Analysis():
 		# 0 means no bias towards either side
 		# * -1 corresponds with the left or upmost target position
 		# ** 1 corresponds with the right or bottommost target position
-		fieldsize = [numpy.max(self.tarcors[u'x'])-numpy.min(self.tarcors[u'x']), numpy.max(self.tarcors[u'y'])-numpy.min(self.tarcors[u'y'])]
+		xbounds = [numpy.min(self.tarcors[u'x']), numpy.max(self.tarcors[u'x'])]
+		ybounds = [numpy.min(self.tarcors[u'y']), numpy.max(self.tarcors[u'y'])]
+		fieldsize = [xbounds[1]-xbounds[0], ybounds[1]-ybounds[0]]
 		self.coc = {}
-		self.coc[u'x'] = (numpy.mean(numpy.unique(self.ctx)) - fieldsize[0]/2) / float(fieldsize[0]/2)
-		self.coc[u'y'] = (numpy.mean(numpy.unique(self.cty)) - fieldsize[1]/2) / float(fieldsize[1]/2)
+		self.coc[u'x'] = (numpy.mean(numpy.unique(self.ctx)) - xbounds[0] - fieldsize[0]/2.0) / float(fieldsize[0]/2.0)
+		self.coc[u'y'] = (numpy.mean(numpy.unique(self.cty)) - ybounds[0] - fieldsize[1]/2.0) / float(fieldsize[1]/2.0)
 	
 	
 	# DISORGANIZED SEARCH MEASURES
@@ -736,10 +745,10 @@ class Analysis():
 		"""Calculates the mean time between cancellations"""
 		
 		# empty array to contain inter-cancellation times
-		self.inttime = {u'all':numpy.zeros(len(self.time)-1)}
+		self.inttime = {u'all':numpy.zeros(len(self.ctt)-1)}
 		# calculate inter-cancellation times
 		for i in range(len(self.inttime[u'all'])):
-			self.inttime[u'all'][i] = self.time[i+1] - self.time[i]
+			self.inttime[u'all'][i] = self.ctt[i+1] - self.ctt[i]
 		# calculate mean inter-cancellation time
 		self.inttime[u'mean'] = numpy.mean(self.inttime[u'all'])
 	
@@ -755,7 +764,7 @@ class Analysis():
 			self.calc_mean_intertime()
 		
 		# calculate the mean search speed
-		self.searchspd = numpy.average(self.intdist[u'mean'] / self.inttime[u'mean'])
+		self.searchspd = numpy.mean(self.intdist[u'all'] / self.inttime[u'all'])
 	
 	def calc_qscore(self):
 		
@@ -823,7 +832,7 @@ class Analysis():
 		
 		# calculate the standardized angles (invalid angles will have a
 		# value below 0, we do not take those into account
-		self.angle['allstd'] = abs((2 * (self.angle['all'][self.angle['all']>=0]/90.0)) -1)
+		self.angle['allstd'] = numpy.abs(((self.angle['all'][self.angle['all']>=0]/90.0)*2) -1)
 		# calculate the mean standardized angle
 		self.angle[u'standardized'] = numpy.mean(self.angle['allstd'])
 
@@ -1070,7 +1079,8 @@ class Analysis():
 		
 		# SCALE TO THEORETICAL MAXIMUM
 		if maptype in [u'cancellation', u'omission']:
-			heatmap = heatmap / self.heatmapvmax
+			if self.heatmapvmax > 0:
+				heatmap = heatmap / self.heatmapvmax
 			vmax = 1
 		else:
 			vmax = None

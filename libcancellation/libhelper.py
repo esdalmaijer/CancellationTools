@@ -29,6 +29,10 @@ import struct
 import numpy
 import pygame
 
+# DEBUG #
+#import androidfriendly.numpy as numpy
+# # # # #
+
 
 # # # # #
 # HELPER FUNCTIONS
@@ -249,11 +253,11 @@ def gaussian(x, sx, y=None, sy=None):
 	xo = x/2
 	yo = y/2
 	# matrix of zeros
-	M = numpy.zeros([y,x],dtype=float)
+	M = numpy.zeros([y,x], dtype=float)
 	# gaussian matrix
 	for i in range(x):
 		for j in range(y):
-			M[j,i] = numpy.exp(-1.0 * (((float(i)-xo)**2/(2*sx*sx)) + ((float(j)-yo)**2/(2*sy*sy)) ) )
+			M[j,i] = numpy.exp((((float(i)-xo)**2/(2*sx*sx)) + ((float(j)-yo)**2/(2*sy*sy)) ) * -1.0 )
 
 	return M
 
@@ -278,10 +282,10 @@ def pearsonr(x, y):
 	x = numpy.asarray(x)
 	y = numpy.asarray(y)
 	n = len(x)
-	mx = x.mean()
-	my = y.mean()
+	mx = numpy.mean(x)
+	my = numpy.mean(y)
 	xm, ym = x-mx, y-my
-	r_num = numpy.add.reduce(xm * ym)
+	r_num = numpy.sum(xm * ym)
 	r_den = numpy.sqrt(numpy.sum(xm**2) * numpy.sum(ym**2))
 	r = r_num / r_den
 
